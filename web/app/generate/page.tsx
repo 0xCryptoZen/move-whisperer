@@ -87,7 +87,7 @@ interface ContractAnalysis {
     description: string;
     possibleCauses: string[];
     solutions: string[];
-    category: string;
+    category: 'permission' | 'validation' | 'state' | 'math' | 'other';
   }>;
   security: {
     riskLevel: 'high' | 'medium' | 'low';
@@ -224,6 +224,7 @@ export default function GeneratePage() {
       }));
 
       // Stage 2: Decompile (if local server available)
+      let decompiledCode: string | undefined;
       if (isLocalServerConnected && hasMoveDecompiler && sourceData.bytecode) {
         setWorkflowStage('decompiling');
         setStageMessage('Decompiling bytecode with Revela...');
@@ -236,7 +237,7 @@ export default function GeneratePage() {
           if (decompileResult.success && decompileResult.output) {
             // Parse decompiled output
             const parts = decompileResult.output.split(/\/\/ ===== Module: (\S+) =====\n*/);
-            let decompiledCode = decompileResult.output;
+            decompiledCode = decompileResult.output;
             for (let i = 1; i < parts.length; i += 2) {
               if (parts[i] === targetModule) {
                 decompiledCode = parts[i + 1]?.trim() || decompileResult.output;
@@ -252,6 +253,8 @@ export default function GeneratePage() {
       }
 
       // Stage 3: AI Analysis (if enabled)
+      // Use decompiled code for analysis (better for regex extraction), fallback to disassembled
+      const codeForAnalysis = decompiledCode || sourceCode;
       if (enableAIAnalysis) {
         setWorkflowStage('analyzing');
         setStageMessage('AI analyzing contract...');
@@ -263,7 +266,7 @@ export default function GeneratePage() {
             packageId,
             network,
             moduleName: targetModule,
-            sourceCode: artifacts.decompiledCode || sourceCode,
+            sourceCode: codeForAnalysis,
           }),
         });
 
