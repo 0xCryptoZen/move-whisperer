@@ -1,0 +1,288 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Dark Glassmorphism Theme */
+    --background: 222 47% 6%;
+    --background-secondary: 222 47% 8%;
+    --foreground: 210 40% 98%;
+
+    /* Glass panels */
+    --glass: 222 47% 11%;
+    --glass-border: 220 40% 18%;
+    --glass-highlight: 220 40% 25%;
+
+    /* Cards */
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 98%;
+
+    /* Primary - Neon Blue */
+    --primary: 217 91% 60%;
+    --primary-glow: 217 91% 60%;
+    --primary-foreground: 222 47% 6%;
+
+    /* Secondary */
+    --secondary: 220 40% 15%;
+    --secondary-foreground: 210 40% 90%;
+
+    /* Muted */
+    --muted: 220 30% 15%;
+    --muted-foreground: 215 20% 55%;
+
+    /* Accent - Cyan Glow */
+    --accent: 190 95% 50%;
+    --accent-foreground: 222 47% 6%;
+
+    /* Success */
+    --success: 142 76% 45%;
+    --success-foreground: 142 76% 95%;
+
+    /* Destructive */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 72% 95%;
+
+    /* Border & Input */
+    --border: 220 30% 18%;
+    --input: 220 30% 12%;
+    --ring: 217 91% 60%;
+
+    /* Radius */
+    --radius: 1rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    background: linear-gradient(135deg,
+      hsl(222 47% 6%) 0%,
+      hsl(228 47% 8%) 50%,
+      hsl(222 47% 5%) 100%);
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  /* Glassmorphism Panel */
+  .glass-panel {
+    @apply relative overflow-hidden;
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.02) 100%
+    );
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .glass-panel-hover {
+    @apply glass-panel transition-all duration-300;
+  }
+
+  .glass-panel-hover:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow:
+      0 12px 40px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  /* Neon Glow Effects */
+  .neon-glow {
+    box-shadow:
+      0 0 5px hsl(var(--primary)),
+      0 0 20px hsl(var(--primary) / 0.4),
+      0 0 40px hsl(var(--primary) / 0.2);
+  }
+
+  .neon-glow-subtle {
+    box-shadow:
+      0 0 10px hsl(var(--primary) / 0.3),
+      0 0 30px hsl(var(--primary) / 0.1);
+  }
+
+  .neon-text {
+    text-shadow:
+      0 0 10px hsl(var(--primary) / 0.8),
+      0 0 40px hsl(var(--primary) / 0.4);
+  }
+
+  /* Input with glow on focus */
+  .input-glow {
+    @apply transition-all duration-300;
+  }
+
+  .input-glow:focus {
+    @apply ring-2 ring-primary/50 border-primary/50;
+    box-shadow:
+      0 0 0 4px hsl(var(--primary) / 0.1),
+      0 0 20px hsl(var(--primary) / 0.2);
+  }
+
+  /* Pill Button */
+  .btn-pill {
+    @apply px-6 py-2.5 rounded-full font-medium text-sm transition-all duration-300;
+  }
+
+  .btn-pill-primary {
+    @apply btn-pill bg-primary text-primary-foreground;
+  }
+
+  .btn-pill-primary:hover {
+    @apply neon-glow;
+    transform: translateY(-1px);
+  }
+
+  .btn-pill-ghost {
+    @apply btn-pill bg-transparent border border-white/10 text-foreground;
+  }
+
+  .btn-pill-ghost:hover {
+    @apply bg-white/5 border-white/20;
+  }
+
+  /* Scene Card */
+  .scene-card {
+    @apply glass-panel rounded-2xl p-5 cursor-pointer transition-all duration-300;
+  }
+
+  .scene-card:hover {
+    @apply border-white/15;
+    transform: translateY(-2px);
+  }
+
+  .scene-card.active {
+    border-color: hsl(var(--primary) / 0.5);
+    box-shadow:
+      0 0 0 1px hsl(var(--primary) / 0.3),
+      0 0 30px hsl(var(--primary) / 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  /* Gradient Text */
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--foreground)) 0%,
+      hsl(var(--primary)) 50%,
+      hsl(var(--accent)) 100%
+    );
+  }
+
+  /* Animated Background Orbs */
+  .bg-orb {
+    @apply absolute rounded-full blur-3xl opacity-30 pointer-events-none;
+    animation: float 20s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    25% { transform: translate(10%, 10%) scale(1.05); }
+    50% { transform: translate(-5%, 15%) scale(0.95); }
+    75% { transform: translate(-10%, -5%) scale(1.02); }
+  }
+
+  /* Toast Animation */
+  @keyframes toast-in {
+    0% {
+      opacity: 0;
+      transform: translateX(-50%) translateY(100%) scale(0.8);
+    }
+    50% {
+      transform: translateX(-50%) translateY(-10%) scale(1.02);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0) scale(1);
+    }
+  }
+
+  @keyframes toast-out {
+    0% {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(-50%) translateY(20px) scale(0.9);
+    }
+  }
+
+  @keyframes toast-shimmer {
+    0% {
+      background-position: -200% center;
+    }
+    100% {
+      background-position: 200% center;
+    }
+  }
+
+  .toast-enter {
+    animation: toast-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  .toast-exit {
+    animation: toast-out 0.3s ease-in forwards;
+  }
+
+  @keyframes draw-check {
+    0% {
+      stroke-dashoffset: 24;
+    }
+    100% {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  /* Code Block */
+  .code-block {
+    @apply glass-panel rounded-xl p-4 font-mono text-sm overflow-auto;
+    background: linear-gradient(
+      135deg,
+      rgba(0, 0, 0, 0.4) 0%,
+      rgba(0, 0, 0, 0.2) 100%
+    );
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-white/20;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}

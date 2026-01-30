@@ -1,0 +1,242 @@
+/**
+ * Protocol Learning Scene Template
+ * Focus: Architecture, concepts, state transitions, design patterns
+ */
+
+export const LEARN_SCENE_TEMPLATE = `---
+name: {{packageName}}
+description: "{{description}}"
+scene: learn
+---
+
+# {{snakeToTitle moduleName}} - Protocol Deep Dive
+
+## One-Liner
+
+{{overview}}
+
+## Architecture Overview
+
+\`\`\`mermaid
+graph TB
+    subgraph "{{snakeToTitle moduleName}} Module"
+{{#each structs}}
+        {{snakeToPascal name}}[{{name}}]
+{{/each}}
+    end
+
+{{#each entryFunctions}}
+    User((User)) -->|{{name}}| {{snakeToPascal name}}Node
+{{/each}}
+\`\`\`
+
+## Contract Info
+
+| Property | Value |
+|----------|-------|
+| Package ID | \`{{packageId}}\` |
+| Module | \`{{moduleName}}\` |
+| Network | {{network}} |
+| Category | {{category}} |
+
+## Core Concepts
+
+{{#each structs}}
+{{#unless isEvent}}
+### {{snakeToPascal name}}
+
+{{#if (length abilities)}}
+**Abilities:** \`{{join abilities ", "}}\`
+{{/if}}
+
+{{#if (hasAbility abilities "key")}}
+This is a **shared object** or **owned object** that persists on-chain.
+{{/if}}
+
+{{#if (hasAbility abilities "store")}}
+Can be stored inside other objects.
+{{/if}}
+
+{{#if (hasAbility abilities "copy")}}
+Can be copied (duplicated in memory).
+{{/if}}
+
+{{#if (hasAbility abilities "drop")}}
+Can be automatically destroyed when going out of scope.
+{{/if}}
+
+**Structure:**
+{{#if (length fields)}}
+| Field | Type | Purpose |
+|-------|------|---------|
+{{#each fields}}
+| \`{{name}}\` | \`{{tsType}}\` | {{description}} |
+{{/each}}
+{{/if}}
+
+---
+
+{{/unless}}
+{{/each}}
+
+## State Transitions
+
+How user actions change the on-chain state:
+
+{{#each entryFunctions}}
+### {{name}}
+
+{{semantic.description}}
+
+**State Changes:**
+{{#each (filterUserParams parameters)}}
+{{#if objectIdRequired}}
+- Modifies \`{{name}}\` object
+{{/if}}
+{{/each}}
+{{#if (length returns)}}
+
+**Creates:**
+{{#each returns}}
+- New \`{{tsType}}\` object
+{{/each}}
+{{/if}}
+
+{{#if (isHighRisk semantic.risk)}}
+> ⚠️ **High Impact** - {{#each semantic.warnings}}{{this}} {{/each}}
+{{/if}}
+
+---
+
+{{/each}}
+
+## Data Flow
+
+\`\`\`mermaid
+sequenceDiagram
+    participant User
+    participant Contract as {{moduleName}}
+{{#each structs}}
+{{#unless isEvent}}
+    participant {{snakeToPascal name}}
+{{/unless}}
+{{/each}}
+
+{{#with (first entryFunctions)}}
+    User->>Contract: {{name}}()
+{{#each (filterUserParams parameters)}}
+{{#if objectIdRequired}}
+    Contract->>{{snakeToPascal name}}: read/modify
+{{/if}}
+{{/each}}
+{{#if (length returns)}}
+    Contract-->>User: returns result
+{{/if}}
+{{/with}}
+\`\`\`
+
+## Design Patterns
+
+{{#if (hasCategory category "dex")}}
+### DEX Pattern
+This module implements a decentralized exchange pattern:
+- Liquidity pools hold token reserves
+- Swap functions exchange tokens with price calculation
+- Fees are collected during swaps
+{{/if}}
+
+{{#if (hasCategory category "defi")}}
+### DeFi Pattern
+This module implements a DeFi protocol:
+- Users deposit assets to participate
+- Protocol manages assets according to rules
+- Rewards/returns are distributed to participants
+{{/if}}
+
+{{#if (hasCategory category "nft")}}
+### NFT Pattern
+This module handles non-fungible tokens:
+- Each token is unique with distinct properties
+- Ownership is tracked on-chain
+- Transfers require owner authorization
+{{/if}}
+
+### Object Ownership Model
+
+| Object Type | Ownership | Access Pattern |
+|-------------|-----------|----------------|
+{{#each structs}}
+{{#unless isEvent}}
+| {{name}} | {{#if (hasAbility abilities "key")}}Owned/Shared{{else}}Embedded{{/if}} | {{#if (hasAbility abilities "store")}}Transferable{{else}}Fixed{{/if}} |
+{{/unless}}
+{{/each}}
+
+## Key Design Decisions
+
+1. **Why {{category}}?**
+   - Optimized for {{category}} use cases
+   - Follows Sui best practices for {{category}} applications
+
+2. **Security Model**
+   - Entry functions validate all inputs
+   - Object capabilities control access
+{{#if (hasAdminFunctions entryFunctions)}}
+   - Admin functions separated from user functions
+{{/if}}
+
+{{#if (length dependencies)}}
+## External Dependencies
+
+This module relies on:
+
+{{#each dependencies}}
+### {{moduleName}} (\`{{packageId}}\`)
+{{#each implications}}
+- {{this}}
+{{/each}}
+{{/each}}
+{{/if}}
+
+{{#if (length events)}}
+## Events
+
+Events emitted by this module:
+
+{{#each events}}
+### {{name}}
+
+{{description}}
+
+Emitted when: (describe trigger condition)
+
+| Field | Type | Meaning |
+|-------|------|---------|
+{{#each fields}}
+| \`{{name}}\` | \`{{tsType}}\` | {{description}} |
+{{/each}}
+
+---
+
+{{/each}}
+{{/if}}
+
+{{#if sourceCode}}
+## Source Code
+
+Disassembled Move bytecode for this module:
+
+\`\`\`move
+{{{sourceCode}}}
+\`\`\`
+
+{{/if}}
+## Further Reading
+
+- [API Reference](references/types.md) - Complete type definitions
+- [Sui Move Documentation](https://docs.sui.io/concepts/sui-move-concepts) - Language fundamentals
+- [Object Model](https://docs.sui.io/concepts/object-model) - Sui's unique object system
+
+---
+
+*Generated by auto-sui-skills v{{generatorVersion}} | Scene: Protocol Learning | {{generatedAt}}*
+`;
