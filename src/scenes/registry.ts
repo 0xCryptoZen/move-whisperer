@@ -2,12 +2,13 @@
  * Scene registry - configuration for different skill generation scenes
  */
 
-import type { SkillScene, SceneConfig, ProtocolPreset, Network } from '../types/index.js';
+import type { SkillScene, PredefinedScene, SceneConfig, ProtocolPreset, Network } from '../types/index.js';
 
 /**
- * Scene configurations
+ * Scene configurations for predefined scenes
+ * Note: 'custom' scene is handled separately as it uses CustomSceneConfig
  */
-export const SCENE_CONFIGS: Record<SkillScene, SceneConfig> = {
+export const SCENE_CONFIGS: Record<PredefinedScene, SceneConfig> = {
   sdk: {
     id: 'sdk',
     name: 'SDK Integration',
@@ -202,17 +203,24 @@ export const PROTOCOL_PRESETS: ProtocolPreset[] = [
 ];
 
 /**
- * Get scene configuration by ID
+ * Get scene configuration by ID (for predefined scenes only)
  */
-export function getSceneConfig(scene: SkillScene): SceneConfig {
+export function getSceneConfig(scene: PredefinedScene): SceneConfig {
   return SCENE_CONFIGS[scene];
 }
 
 /**
- * Get all scene IDs
+ * Get all predefined scene IDs
+ */
+export function getAllPredefinedSceneIds(): PredefinedScene[] {
+  return Object.keys(SCENE_CONFIGS) as PredefinedScene[];
+}
+
+/**
+ * Get all scene IDs including custom
  */
 export function getAllSceneIds(): SkillScene[] {
-  return Object.keys(SCENE_CONFIGS) as SkillScene[];
+  return [...Object.keys(SCENE_CONFIGS), 'custom'] as SkillScene[];
 }
 
 /**
@@ -223,24 +231,37 @@ export function getProtocolPreset(id: string): ProtocolPreset | undefined {
 }
 
 /**
+ * Check if scene is predefined (not custom)
+ */
+export function isPredefinedScene(scene: SkillScene): scene is PredefinedScene {
+  return scene !== 'custom' && scene in SCENE_CONFIGS;
+}
+
+/**
  * Validate scene ID
  */
 export function isValidScene(scene: string): scene is SkillScene {
-  return scene in SCENE_CONFIGS;
+  return scene === 'custom' || scene in SCENE_CONFIGS;
 }
 
 /**
  * Get scene display name
  */
 export function getSceneDisplayName(scene: SkillScene, language: 'en' | 'zh' = 'en'): string {
+  if (scene === 'custom') {
+    return language === 'zh' ? '自定义场景' : 'Custom Scene';
+  }
   const config = SCENE_CONFIGS[scene];
   return language === 'zh' ? config.nameZh : config.name;
 }
 
 /**
- * Get scene focus areas
+ * Get scene focus areas (returns empty array for custom scene)
  */
 export function getSceneFocusAreas(scene: SkillScene, language: 'en' | 'zh' = 'en'): string[] {
+  if (scene === 'custom') {
+    return []; // Custom scenes define their own focus areas
+  }
   const config = SCENE_CONFIGS[scene];
   return language === 'zh' ? config.focusAreasZh : config.focusAreas;
 }

@@ -2,7 +2,7 @@
  * Skill generator - generates SKILL.md from analyzed module
  */
 
-import type { AnalyzedModule, AnalyzedFunction, Network, SkillScene } from '../types/index.js';
+import type { AnalyzedModule, AnalyzedFunction, Network, SkillScene, CustomSceneConfig } from '../types/index.js';
 import {
   TemplateEngine,
   createTemplateEngine,
@@ -19,6 +19,7 @@ export interface SkillGeneratorOptions {
   language?: 'en' | 'zh';
   includeExamples?: boolean;
   scene?: SkillScene;
+  customScene?: CustomSceneConfig;
 }
 
 /**
@@ -27,10 +28,12 @@ export interface SkillGeneratorOptions {
 export class SkillGenerator {
   private templateEngine: TemplateEngine;
   private defaultScene: SkillScene;
+  private customSceneConfig?: CustomSceneConfig;
 
   constructor(options: SkillGeneratorOptions = {}) {
     this.templateEngine = createTemplateEngine();
     this.defaultScene = options.scene ?? 'sdk';
+    this.customSceneConfig = options.customScene;
   }
 
   /**
@@ -44,9 +47,14 @@ export class SkillGenerator {
   /**
    * Generate scene-specific SKILL.md content
    */
-  generateSceneSkillMd(module: AnalyzedModule, scene?: SkillScene): string {
+  generateSceneSkillMd(
+    module: AnalyzedModule,
+    scene?: SkillScene,
+    customSceneConfig?: CustomSceneConfig
+  ): string {
     const actualScene = scene ?? this.defaultScene;
-    const context = this.buildSceneSkillMdContext(module, actualScene);
+    const customConfig = customSceneConfig ?? this.customSceneConfig;
+    const context = this.buildSceneSkillMdContext(module, actualScene, customConfig);
     return this.templateEngine.renderSceneSkillMd(actualScene, context);
   }
 
@@ -116,7 +124,11 @@ export class SkillGenerator {
   /**
    * Build context for scene-specific SKILL.md template
    */
-  private buildSceneSkillMdContext(module: AnalyzedModule, scene: SkillScene): SceneSkillMdContext {
+  private buildSceneSkillMdContext(
+    module: AnalyzedModule,
+    scene: SkillScene,
+    customSceneConfig?: CustomSceneConfig
+  ): SceneSkillMdContext {
     const baseContext = this.buildSkillMdContext(module);
     const entryFunctions = module.functions.filter((f) => f.isEntry);
 
@@ -141,7 +153,8 @@ export class SkillGenerator {
       isEvent: s.isEvent,
     }));
 
-    return {
+    // Build base scene context
+    const sceneContext: SceneSkillMdContext = {
       ...baseContext,
       scene,
       totalFunctions: module.functions.length,
@@ -150,6 +163,15 @@ export class SkillGenerator {
       structs,
       sourceCode: module.sourceCode,
     };
+
+    // Add custom scene fields if provided
+    if (scene === 'custom' && customSceneConfig) {
+      sceneContext.customSceneName = customSceneConfig.name;
+      sceneContext.customSceneDescription = customSceneConfig.description;
+      sceneContext.customFocusAreas = customSceneConfig.focusAreas;
+    }
+
+    return sceneContext;
   }
 
   /**

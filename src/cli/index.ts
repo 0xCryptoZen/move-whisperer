@@ -9,6 +9,7 @@ import { createGenerateCommand } from './commands/generate.js';
 import { createPreviewCommand } from './commands/preview.js';
 import { createListCommand } from './commands/list.js';
 import { createSourceCommand } from './commands/source.js';
+import { createServeCommand } from './commands/serve.js';
 
 /**
  * Create the CLI program
@@ -26,6 +27,7 @@ export function createProgram(): Command {
   program.addCommand(createPreviewCommand());
   program.addCommand(createListCommand());
   program.addCommand(createSourceCommand());
+  program.addCommand(createServeCommand());
 
   // Custom help
   program.addHelpText('after', `
@@ -47,6 +49,12 @@ ${chalk.cyan('Examples:')}
 
   ${chalk.gray('# Download all source code to files')}
   $ auto-sui-skills source 0xdee9 -n mainnet -f file -o ./deepbook-source
+
+  ${chalk.gray('# Start local server for web UI')}
+  $ auto-sui-skills serve --port 3456
+
+  ${chalk.gray('# Start server and open browser')}
+  $ auto-sui-skills serve --open
 
 ${chalk.cyan('More info:')}
   Repository: https://github.com/example/auto-sui-skills

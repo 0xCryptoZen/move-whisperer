@@ -36,3 +36,12 @@ output/
 
 # Plan directory
 plan/
+
+# External tools (cloned during install)
+sui-revela/
+
+# Next.js build output
+web/.next/
+
+# Bun lockfile (use pnpm)
+bun.lock

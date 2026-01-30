@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useLocalServer } from '../../hooks/useLocalServer';
 
 // Toast notification component with animations
 function Toast({ message, isVisible, onClose }: { message: string; isVisible: boolean; onClose: () => void }) {
@@ -64,8 +65,16 @@ function Toast({ message, isVisible, onClose }: { message: string; isVisible: bo
 }
 
 type Network = 'mainnet' | 'testnet' | 'devnet';
-type SkillScene = 'sdk' | 'learn' | 'audit' | 'frontend' | 'bot' | 'docs';
+type PredefinedScene = 'sdk' | 'learn' | 'audit' | 'frontend' | 'bot' | 'docs';
+type SkillScene = PredefinedScene | 'custom';
 type TabType = 'generate' | 'source';
+
+// Custom scene configuration
+interface CustomSceneConfig {
+  name: string;
+  description: string;
+  focusAreas: string[];
+}
 
 // Detailed progress steps with sub-tasks
 const PROGRESS_STEPS = [
@@ -90,7 +99,7 @@ interface ProgressLog {
 }
 
 // Scene configuration
-const SCENES: Record<SkillScene, { name: string; nameZh: string; icon: string; description: string; color: string }> = {
+const PREDEFINED_SCENES: Record<PredefinedScene, { name: string; nameZh: string; icon: string; description: string; color: string }> = {
   sdk: {
     name: 'SDK Integration',
     nameZh: 'SDK 集成',
@@ -135,6 +144,21 @@ const SCENES: Record<SkillScene, { name: string; nameZh: string; icon: string; d
   },
 };
 
+// Custom scene entry
+const CUSTOM_SCENE_CONFIG = {
+  name: 'Custom Scene',
+  nameZh: '自定义场景',
+  icon: '✨',
+  description: 'Define your own focus areas and prompts',
+  color: 'from-pink-500/20 to-pink-500/5',
+};
+
+// All scenes including custom
+const SCENES: Record<SkillScene, { name: string; nameZh: string; icon: string; description: string; color: string }> = {
+  ...PREDEFINED_SCENES,
+  custom: CUSTOM_SCENE_CONFIG,
+};
+
 // Protocol presets
 const PROTOCOL_PRESETS = [
   { id: 'deepbook', name: 'DeepBook', packageId: '0xdee9', modules: ['clob_v2'] },
@@ -155,13 +179,15 @@ interface GenerateResult {
 interface SourceResult {
   packageId: string;
   modules: Record<string, string>;
+  bytecode?: Record<string, string>; // Raw bytecode (base64) for decompilation
   fetchedAt: string;
 }
 
 interface DecompiledResult {
   decompiled: Record<string, string>;
   errors?: Record<string, string>;
-  decompileAt: string;
+  decompileAt?: string;
+  decompiler?: 'revela' | 'builtin';
 }
 
 type SourceViewMode = 'disassembled' | 'decompiled';
@@ -185,6 +211,12 @@ export default function GeneratePage() {
   const [input, setInput] = useState('');
   const [network, setNetwork] = useState<Network>('mainnet');
   const [scene, setScene] = useState<SkillScene>('sdk');
+  const [customScene, setCustomScene] = useState<CustomSceneConfig>({
+    name: '',
+    description: '',
+    focusAreas: [],
+  });
+  const [customFocusInput, setCustomFocusInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<GenerateResult | null>(null);
@@ -216,6 +248,21 @@ export default function GeneratePage() {
   const [decompiledResult, setDecompiledResult] = useState<DecompiledResult | null>(null);
   const [isDecompiling, setIsDecompiling] = useState(false);
   const [decompileError, setDecompileError] = useState<string | null>(null);
+  const [decompileProgress, setDecompileProgress] = useState<string | null>(null);
+
+  // Local server connection for CLI tools
+  const {
+    isConnected: isLocalServerConnected,
+    health: localServerHealth,
+    decompile: localServerDecompile,
+    isDecompiling: isLocalDecompiling,
+    decompileProgress: localDecompileProgress,
+  } = useLocalServer({ autoConnect: true });
+
+  // Check if move-decompiler is available via local server
+  const hasMoveDecompiler = localServerHealth?.tools.some(
+    t => t.name === 'move-decompiler' && t.available
+  ) ?? false;
 
   const getCurrentStepIndex = () => {
     if (!progress) return -1;
@@ -274,6 +321,7 @@ export default function GeneratePage() {
           input: input.trim(),
           network,
           scene,
+          customScene: scene === 'custom' ? customScene : undefined,
         }),
       });
 
@@ -455,8 +503,59 @@ export default function GeneratePage() {
 
     setIsDecompiling(true);
     setDecompileError(null);
+    setDecompileProgress(null);
 
     try {
+      // Try local server with move-decompiler first (if available)
+      if (isLocalServerConnected && hasMoveDecompiler && sourceResult.bytecode) {
+        setDecompileProgress('Using local move-decompiler (Revela)...');
+
+        const result = await localServerDecompile(sourceResult.packageId, {
+          bytecode: sourceResult.bytecode,
+          onProgress: (msg) => setDecompileProgress(msg),
+          onStdout: (data) => setDecompileProgress(`Decompiling... ${data.slice(0, 100)}`),
+        });
+
+        if (result.success && result.output) {
+          // Parse modules from output - format: "// ===== Module: xxx ====="
+          const modules: Record<string, string> = {};
+          const parts = result.output.split(/\/\/ ===== Module: (\S+) =====\n*/);
+
+          // parts[0] is empty or preamble, then alternating: moduleName, content
+          for (let i = 1; i < parts.length; i += 2) {
+            const moduleName = parts[i];
+            const content = parts[i + 1] || '';
+            if (moduleName) {
+              modules[moduleName] = content.trim();
+            }
+          }
+
+          // If no modules parsed, use all output
+          if (Object.keys(modules).length === 0) {
+            modules['output'] = result.output;
+          }
+
+          setDecompiledResult({
+            decompiled: modules,
+            decompiler: 'revela',
+          });
+
+          // Select first available module if current selection doesn't exist
+          const moduleKeys = Object.keys(modules);
+          if (moduleKeys.length > 0 && (!selectedModule || !modules[selectedModule])) {
+            setSelectedModule(moduleKeys[0]);
+          }
+
+          setSourceViewMode('decompiled');
+          return;
+        } else {
+          throw new Error(result.error || 'Local decompilation failed');
+        }
+      }
+
+      // Fallback to built-in decompiler via API
+      setDecompileProgress('Using built-in decompiler...');
+
       const response = await fetch('/api/source/decompile', {
         method: 'POST',
         headers: {
@@ -471,12 +570,16 @@ export default function GeneratePage() {
       }
 
       const data = await response.json();
-      setDecompiledResult(data);
+      setDecompiledResult({
+        ...data,
+        decompiler: 'builtin',
+      });
       setSourceViewMode('decompiled');
     } catch (err) {
       setDecompileError(err instanceof Error ? err.message : 'Decompilation failed');
     } finally {
       setIsDecompiling(false);
+      setDecompileProgress(null);
     }
   };
 
@@ -678,13 +781,13 @@ export default function GeneratePage() {
                   Select Scene
                 </h2>
 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {(Object.entries(SCENES) as [SkillScene, typeof SCENES[SkillScene]][]).map(
                     ([id, config]) => (
                       <button
                         key={id}
                         onClick={() => setScene(id)}
-                        className={`scene-card text-left ${scene === id ? 'active' : ''}`}
+                        className={`scene-card text-left ${scene === id ? 'active' : ''} ${id === 'custom' ? 'border-dashed' : ''}`}
                       >
                         <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${config.color} flex items-center justify-center mb-3`}>
                           <span className="text-xl">{config.icon}</span>
@@ -697,6 +800,89 @@ export default function GeneratePage() {
                     )
                   )}
                 </div>
+
+                {/* Custom Scene Configuration */}
+                {scene === 'custom' && (
+                  <div className="mt-4 p-4 border border-dashed border-white/20 rounded-xl bg-white/[0.02] space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Scene Name</label>
+                      <input
+                        type="text"
+                        value={customScene.name}
+                        onChange={(e) => setCustomScene(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="e.g., MEV Analysis, Oracle Integration, Governance..."
+                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Description</label>
+                      <textarea
+                        value={customScene.description}
+                        onChange={(e) => setCustomScene(prev => ({ ...prev, description: e.target.value }))}
+                        placeholder="Describe what you want to focus on in the generated documentation..."
+                        rows={2}
+                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Focus Areas</label>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {customScene.focusAreas.map((area, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-primary/20 text-primary rounded-full text-xs"
+                          >
+                            {area}
+                            <button
+                              onClick={() => setCustomScene(prev => ({
+                                ...prev,
+                                focusAreas: prev.focusAreas.filter((_, i) => i !== idx)
+                              }))}
+                              className="hover:text-white ml-1"
+                            >
+                              x
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={customFocusInput}
+                          onChange={(e) => setCustomFocusInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && customFocusInput.trim()) {
+                              setCustomScene(prev => ({
+                                ...prev,
+                                focusAreas: [...prev.focusAreas, customFocusInput.trim()]
+                              }));
+                              setCustomFocusInput('');
+                            }
+                          }}
+                          placeholder="Add focus area (press Enter)"
+                          className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:border-primary/50"
+                        />
+                        <button
+                          onClick={() => {
+                            if (customFocusInput.trim()) {
+                              setCustomScene(prev => ({
+                                ...prev,
+                                focusAreas: [...prev.focusAreas, customFocusInput.trim()]
+                              }));
+                              setCustomFocusInput('');
+                            }
+                          }}
+                          className="px-4 py-2 bg-primary/20 text-primary rounded-xl text-sm hover:bg-primary/30 transition-colors"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Examples: Price calculation logic, Liquidity management, Access control patterns, Event emissions
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Progress Display */}
@@ -852,7 +1038,7 @@ export default function GeneratePage() {
                   }`}
                 >
                   <span className="flex items-center justify-center gap-2">
-                    Generate {SCENES[scene].name} Skill
+                    Generate {scene === 'custom' && customScene.name ? customScene.name : SCENES[scene].name} Skill
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                     </svg>
@@ -868,8 +1054,12 @@ export default function GeneratePage() {
                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${SCENES[scene].color} flex items-center justify-center mb-4`}>
                   <span className="text-2xl">{SCENES[scene].icon}</span>
                 </div>
-                <h3 className="font-semibold mb-2">{SCENES[scene].name}</h3>
-                <p className="text-sm text-muted-foreground mb-4">{SCENES[scene].description}</p>
+                <h3 className="font-semibold mb-2">
+                  {scene === 'custom' && customScene.name ? customScene.name : SCENES[scene].name}
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {scene === 'custom' && customScene.description ? customScene.description : SCENES[scene].description}
+                </p>
                 <div className="pt-4 border-t border-white/5">
                   <div className="text-xs text-muted-foreground mb-2">This scene focuses on:</div>
                   <ul className="text-sm space-y-1">
@@ -913,6 +1103,19 @@ export default function GeneratePage() {
                         <li className="flex items-center gap-2"><span className="text-cyan-400">•</span> API reference</li>
                         <li className="flex items-center gap-2"><span className="text-cyan-400">•</span> Terminology glossary</li>
                         <li className="flex items-center gap-2"><span className="text-cyan-400">•</span> Usage examples</li>
+                      </>
+                    )}
+                    {scene === 'custom' && (
+                      <>
+                        {customScene.focusAreas.length > 0 ? (
+                          customScene.focusAreas.map((area, idx) => (
+                            <li key={idx} className="flex items-center gap-2">
+                              <span className="text-pink-400">•</span> {area}
+                            </li>
+                          ))
+                        ) : (
+                          <li className="text-muted-foreground italic">Add focus areas to customize generation</li>
+                        )}
                       </>
                     )}
                   </ul>
@@ -1191,10 +1394,17 @@ export default function GeneratePage() {
                       <div className="flex items-center justify-between mb-3">
                         <span className={`px-2 py-1 rounded text-xs ${
                           sourceViewMode === 'decompiled'
-                            ? 'bg-purple-500/20 text-purple-300'
-                            : 'bg-green-500/20 text-green-300'
+                            ? decompiledResult?.decompiler === 'revela'
+                              ? 'bg-green-500/20 text-green-300'
+                              : 'bg-purple-500/20 text-purple-300'
+                            : 'bg-blue-500/20 text-blue-300'
                         }`}>
-                          {sourceViewMode === 'decompiled' ? '✨ Decompiled' : '📦 Bytecode'}
+                          {sourceViewMode === 'decompiled'
+                            ? decompiledResult?.decompiler === 'revela'
+                              ? '✨ Revela'
+                              : '✨ Decompiled'
+                            : '📦 Bytecode'
+                          }
                         </span>
                         <button
                           type="button"
@@ -1220,8 +1430,8 @@ export default function GeneratePage() {
                         }`}>
                           <code>
                             {sourceViewMode === 'decompiled' && decompiledResult
-                              ? decompiledResult.decompiled[selectedModule]
-                              : sourceResult.modules[selectedModule]}
+                              ? (decompiledResult.decompiled[selectedModule] || `// No decompiled code for module: ${selectedModule}`)
+                              : (sourceResult.modules[selectedModule] || '// No source code')}
                           </code>
                         </pre>
                       </div>
@@ -1249,10 +1459,10 @@ export default function GeneratePage() {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7c-2 0-3 1-3 3z" />
                         </svg>
-                        {(sourceViewMode === 'decompiled' && decompiledResult
+                        {((sourceViewMode === 'decompiled' && decompiledResult
                           ? decompiledResult.decompiled[selectedModule]
                           : sourceResult.modules[selectedModule]
-                        ).split('\n').length} lines
+                        ) || '').split('\n').length} lines
                       </span>
                     )}
                     {sourceViewMode === 'decompiled' && decompiledResult && (
@@ -1260,7 +1470,8 @@ export default function GeneratePage() {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
-                        Decompiled at {new Date(decompiledResult.decompileAt).toLocaleTimeString()}
+                        {decompiledResult.decompiler === 'revela' ? 'Revela CLI' : 'Built-in'}
+                        {decompiledResult.decompileAt && ` at ${new Date(decompiledResult.decompileAt).toLocaleTimeString()}`}
                       </span>
                     )}
                   </div>
@@ -1278,14 +1489,56 @@ export default function GeneratePage() {
                   Need Readable Source Code?
                 </h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  The code above is <strong>disassembled bytecode</strong>. Click the <strong>"Decompiled"</strong> button above to convert it to readable Move source, or use external tools for more accurate results:
+                  The code above is <strong>disassembled bytecode</strong>.
+                  {isLocalServerConnected && hasMoveDecompiler ? (
+                    <span className="text-green-400"> Local Revela CLI detected - click below for high-quality decompilation!</span>
+                  ) : (
+                    ' Click below to convert it to readable Move source:'
+                  )}
                 </p>
+
+                {/* Decompiler status indicator */}
+                <div className="flex items-center gap-3 mb-4 text-xs">
+                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full ${
+                    isLocalServerConnected && hasMoveDecompiler
+                      ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                      : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                  }`}>
+                    <div className={`w-1.5 h-1.5 rounded-full ${
+                      isLocalServerConnected && hasMoveDecompiler ? 'bg-green-400' : 'bg-yellow-400'
+                    }`} />
+                    {isLocalServerConnected && hasMoveDecompiler
+                      ? 'Revela CLI (High Quality)'
+                      : 'Built-in Decompiler (Basic)'
+                    }
+                  </div>
+                  {!isLocalServerConnected && (
+                    <span className="text-muted-foreground">
+                      Run <code className="px-1.5 py-0.5 rounded bg-white/5 font-mono">pnpm serve</code> for better results
+                    </span>
+                  )}
+                </div>
+
+                {/* Progress indicator */}
+                {decompileProgress && (
+                  <div className="mb-4 px-3 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-sm text-purple-300 flex items-center gap-2">
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    {decompileProgress}
+                  </div>
+                )}
 
                 <div className="flex flex-wrap gap-3 mb-4">
                   <button
                     onClick={handleDecompile}
                     disabled={isDecompiling}
-                    className="px-4 py-2.5 rounded-xl text-sm font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:shadow-glow-sm transition-all duration-300 flex items-center gap-2"
+                    className={`px-4 py-2.5 rounded-xl text-sm font-medium text-white hover:shadow-glow-sm transition-all duration-300 flex items-center gap-2 ${
+                      isLocalServerConnected && hasMoveDecompiler
+                        ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+                        : 'bg-gradient-to-r from-purple-500 to-pink-500'
+                    }`}
                   >
                     {isDecompiling ? (
                       <>
@@ -1300,23 +1553,25 @@ export default function GeneratePage() {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                         </svg>
-                        Decompile Now
+                        {isLocalServerConnected && hasMoveDecompiler ? 'Decompile with Revela' : 'Decompile Now'}
                       </>
                     )}
                   </button>
 
-                  <a
-                    href={`https://revela.verichains.io/sui/${sourceResult.packageId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-4 py-2.5 rounded-xl text-sm font-medium border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500/50 transition-all duration-300 flex items-center gap-2"
-                  >
-                    <span>🔬</span>
-                    Revela (Advanced)
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </a>
+                  {!hasMoveDecompiler && (
+                    <a
+                      href={`https://revela.verichains.io/sui/${sourceResult.packageId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2.5 rounded-xl text-sm font-medium border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500/50 transition-all duration-300 flex items-center gap-2"
+                    >
+                      <span>🔬</span>
+                      Revela Online
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  )}
 
                   <a
                     href="https://suigpt.tools/decompiler"
@@ -1359,9 +1614,18 @@ export default function GeneratePage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     Decompilation Complete
+                    {decompiledResult.decompiler && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        decompiledResult.decompiler === 'revela'
+                          ? 'bg-green-500/20 text-green-400'
+                          : 'bg-purple-500/20 text-purple-400'
+                      }`}>
+                        {decompiledResult.decompiler === 'revela' ? 'Revela' : 'Built-in'}
+                      </span>
+                    )}
                   </h3>
                   <span className="text-xs text-muted-foreground">
-                    {new Date(decompiledResult.decompileAt).toLocaleString()}
+                    {decompiledResult.decompileAt ? new Date(decompiledResult.decompileAt).toLocaleString() : 'Just now'}
                   </span>
                 </div>
 

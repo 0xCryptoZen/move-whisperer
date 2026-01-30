@@ -75,9 +75,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Also fetch raw bytecode for decompilation
+    let bytecode: Record<string, string> = {};
+    try {
+      const objectWithBcs = await client.getObject({
+        id: packageId,
+        options: {
+          showBcs: true,
+        },
+      });
+
+      const bcsData = objectWithBcs.data?.bcs;
+      if (bcsData && 'moduleMap' in bcsData) {
+        bytecode = bcsData.moduleMap as Record<string, string>;
+      }
+    } catch (e) {
+      console.warn('Could not fetch bytecode:', e);
+    }
+
     return NextResponse.json({
       packageId,
       modules: disassembled as Record<string, string>,
+      bytecode, // Raw bytecode (base64) for decompilation
       fetchedAt: new Date().toISOString(),
     });
   } catch (error) {

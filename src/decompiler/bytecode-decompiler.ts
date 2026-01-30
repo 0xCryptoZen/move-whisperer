@@ -100,9 +100,6 @@ function extractStructs(lines: string[]): DecompiledStruct[] {
 function extractAndDecompileFunctions(bytecode: string): DecompiledFunction[] {
   const functions: DecompiledFunction[] = [];
 
-  // Match function blocks
-  const funcRegex = /(public(?:\s+entry)?|entry|friend|private)?\s*(\w+)(?:<([^>]+)>)?\(([^)]*)\)(?:\s*:\s*([^\{]+))?\s*\{([^]*?)(?=\n(?:public|entry|friend|private|\w+\s*<|\w+\()[^}]*\{|\n*$)/g;
-
   // Simpler approach: split by function patterns
   const funcBlocks = bytecode.split(/\n(?=(?:public|entry|friend|private)\s)/);
 
@@ -183,7 +180,7 @@ function parseParams(paramsStr: string): { name: string; type: string }[] {
 function decompileFunctionBody(
   lines: string[],
   params: { name: string; type: string }[],
-  funcName: string
+  _funcName: string
 ): string {
   const statements: string[] = [];
   const locals: Map<string, string> = new Map();
@@ -212,7 +209,7 @@ function decompileFunctionBody(
     if (!instrMatch) continue;
 
     const [, opcode, operand, annotation] = instrMatch;
-    const result = processInstruction(opcode, operand, annotation, locals, stack, statements);
+    processInstruction(opcode, operand, annotation, locals, stack, statements);
   }
 
   // Format the body

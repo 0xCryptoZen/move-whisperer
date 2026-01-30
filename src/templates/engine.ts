@@ -474,6 +474,10 @@ export interface SceneSkillMdContext extends SkillMdContext {
   structs: StructContext[];
   /** Disassembled Move source code */
   sourceCode?: string;
+  // Custom scene fields (only used when scene === 'custom')
+  customSceneName?: string;
+  customSceneDescription?: string;
+  customFocusAreas?: string[];
 }
 
 /**

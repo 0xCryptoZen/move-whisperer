@@ -11,12 +11,14 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "cli": "node --loader ts-node/esm bin/auto-sui-skills.ts",
+    "cli": "bun run bin/auto-sui-skills.ts",
+    "serve": "bun run bin/server.ts",
+    "install:revela": "bash scripts/install-revela.sh",
     "test": "vitest",
     "test:run": "vitest run",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
-    "prepublishOnly": "pnpm run build"
+    "prepublishOnly": "bun run build"
   },
   "keywords": [
     "sui",
@@ -34,10 +36,12 @@
     "commander": "^12.1.0",
     "handlebars": "^4.7.8",
     "ora": "^8.1.1",
+    "ws": "^8.18.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",
+    "@types/ws": "^8.5.13",
     "eslint": "^9.18.0",
     "prettier": "^3.4.2",
     "ts-node": "^10.9.2",

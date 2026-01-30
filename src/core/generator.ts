@@ -10,6 +10,7 @@ import type {
   GeneratedExample,
   ProgressCallback,
   SkillScene,
+  CustomSceneConfig,
 } from '../types/index.js';
 import { AbiFetcher, createAbiFetcher, parsePackageInput } from '../fetcher/index.js';
 import { ModuleAnalyzer, createModuleAnalyzer } from '../analyzer/index.js';
@@ -18,7 +19,6 @@ import { ScriptGenerator, createScriptGenerator } from '../generator/script-gene
 import { createFileWriter } from '../output/writer.js';
 import { VERSION } from '../index.js';
 import { createHash } from 'crypto';
-import { getSceneConfig } from '../scenes/index.js';
 
 export interface MainGeneratorOptions {
   network: Network;
@@ -29,6 +29,7 @@ export interface MainGeneratorOptions {
   outputDir?: string;
   // Scene-related options
   scene?: SkillScene;
+  customScene?: CustomSceneConfig;
   analyzeDependencies?: boolean;
   includeArchitectureDiagram?: boolean;
   moduleFilter?: string[];
@@ -48,7 +49,7 @@ export class MainGenerator {
   private moduleAnalyzer: ModuleAnalyzer;
   private skillGenerator: SkillGenerator;
   private scriptGenerator: ScriptGenerator;
-  private options: Required<Omit<MainGeneratorOptions, 'moduleFilter'>> & { moduleFilter?: string[] };
+  private options: Required<Omit<MainGeneratorOptions, 'moduleFilter' | 'customScene'>> & { moduleFilter?: string[]; customScene?: CustomSceneConfig };
 
   constructor(options: MainGeneratorOptions) {
     this.options = {
@@ -59,6 +60,7 @@ export class MainGenerator {
       includeExamples: options.includeExamples ?? true,
       outputDir: options.outputDir ?? './',
       scene: options.scene ?? 'sdk',
+      customScene: options.customScene,
       analyzeDependencies: options.analyzeDependencies ?? false,
       includeArchitectureDiagram: options.includeArchitectureDiagram ?? false,
       moduleFilter: options.moduleFilter,
@@ -71,6 +73,7 @@ export class MainGenerator {
     this.skillGenerator = createSkillGenerator({
       language: this.options.language,
       scene: this.options.scene,
+      customScene: this.options.customScene,
     });
     this.scriptGenerator = createScriptGenerator();
   }
@@ -208,7 +211,9 @@ export class MainGenerator {
       : [];
 
     // Build metadata
-    const sceneConfig = getSceneConfig(this.options.scene);
+    const sceneId = this.options.scene === 'custom'
+      ? (this.options.customScene?.name?.toLowerCase().replace(/\s+/g, '-') || 'custom')
+      : this.options.scene;
     const metadata: SkillMetadata = {
       generatedAt: new Date().toISOString(),
       generatorVersion: VERSION,
@@ -219,7 +224,7 @@ export class MainGenerator {
     };
 
     return {
-      packageName: `${this.formatPackageName(analyzed.moduleName)}-${sceneConfig.id}`,
+      packageName: `${this.formatPackageName(analyzed.moduleName)}-${sceneId}`,
       skillMd,
       references: {
         abi: JSON.stringify(analyzed, null, 2),
