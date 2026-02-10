@@ -424,8 +424,8 @@ export default function PlaygroundPage() {
     ];
 
     try {
-      if (isConnected && !isCloudSkillSelected) {
-        // Use local server Claude CLI
+      if (isConnected) {
+        // Use local server Claude CLI (works for both local and cloud skills)
         const { getLocalServerClient } = await import('../../lib/local-server');
         const client = getLocalServerClient();
 
