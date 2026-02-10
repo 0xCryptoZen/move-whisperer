@@ -10,6 +10,8 @@ import { createPreviewCommand } from './commands/preview.js';
 import { createListCommand } from './commands/list.js';
 import { createSourceCommand } from './commands/source.js';
 import { createServeCommand } from './commands/serve.js';
+import { createHistoryCommand } from './commands/history.js';
+import { createTxCommand } from './commands/tx.js';
 
 /**
  * Create the CLI program
@@ -18,8 +20,8 @@ export function createProgram(): Command {
   const program = new Command();
 
   program
-    .name('auto-sui-skills')
-    .description('Auto-generate Claude skills from Sui Move contracts')
+    .name('move-whisperer')
+    .description('MoveWhisperer - The AI that speaks Move')
     .version(VERSION, '-V, --version', 'Display version number');
 
   // Add commands
@@ -28,36 +30,56 @@ export function createProgram(): Command {
   program.addCommand(createListCommand());
   program.addCommand(createSourceCommand());
   program.addCommand(createServeCommand());
+  program.addCommand(createHistoryCommand());
+  program.addCommand(createTxCommand());
 
   // Custom help
   program.addHelpText('after', `
 ${chalk.cyan('Examples:')}
   ${chalk.gray('# Generate skill from a specific module')}
-  $ auto-sui-skills generate 0xdee9::clob_v2 -n mainnet
+  $ move-whisperer generate 0xdee9::clob_v2 -n mainnet
 
   ${chalk.gray('# Generate skill from entire package')}
-  $ auto-sui-skills generate 0xdee9 -n mainnet -o ./skills/deepbook
+  $ move-whisperer generate 0xdee9 -n mainnet -o ./skills/deepbook
 
   ${chalk.gray('# Preview without saving')}
-  $ auto-sui-skills preview 0x2::coin -n mainnet
+  $ move-whisperer preview 0x2::coin -n mainnet
 
   ${chalk.gray('# List modules in a package')}
-  $ auto-sui-skills list 0xdee9 -n mainnet
+  $ move-whisperer list 0xdee9 -n mainnet
 
   ${chalk.gray('# Download source code for a module')}
-  $ auto-sui-skills source 0xdee9::clob_v2 -n mainnet
+  $ move-whisperer source 0xdee9::clob_v2 -n mainnet
 
   ${chalk.gray('# Download all source code to files')}
-  $ auto-sui-skills source 0xdee9 -n mainnet -f file -o ./deepbook-source
+  $ move-whisperer source 0xdee9 -n mainnet -f file -o ./deepbook-source
 
   ${chalk.gray('# Start local server for web UI')}
-  $ auto-sui-skills serve --port 3456
+  $ move-whisperer serve --port 3456
 
   ${chalk.gray('# Start server and open browser')}
-  $ auto-sui-skills serve --open
+  $ move-whisperer serve --open
+
+  ${chalk.gray('# View package version history')}
+  $ move-whisperer history 0xdee9 -n mainnet
+
+  ${chalk.gray('# Compare two versions')}
+  $ move-whisperer history 0xdee9 --compare 1:2
+
+  ${chalk.gray('# Compare with decompiled source')}
+  $ move-whisperer history 0xdee9 --compare latest:previous --decompile
+
+  ${chalk.gray('# Analyze a transaction')}
+  $ move-whisperer tx 0xabc123... -n mainnet
+
+  ${chalk.gray('# Analyze transaction with verbose output')}
+  $ move-whisperer tx 0xabc123... -n mainnet --verbose
+
+  ${chalk.gray('# Output transaction analysis as JSON')}
+  $ move-whisperer tx 0xabc123... --json
 
 ${chalk.cyan('More info:')}
-  Repository: https://github.com/example/auto-sui-skills
+  Repository: https://github.com/example/move-whisperer
   `);
 
   return program;

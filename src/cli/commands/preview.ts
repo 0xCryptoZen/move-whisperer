@@ -7,7 +7,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import type { Network } from '../../types/index.js';
 import { createMainGenerator } from '../../core/generator.js';
-import { AutoSuiSkillsError } from '../../core/errors.js';
+import { MoveWhispererError } from '../../core/errors.js';
 
 export interface PreviewOptions {
   network: Network;
@@ -79,7 +79,7 @@ export function createPreviewCommand(): Command {
           console.log(`    ${chalk.gray('-')} scripts/read.ts`);
         }
         console.log('');
-        console.log(chalk.gray('  Use "auto-sui-skills generate" to save files.'));
+        console.log(chalk.gray('  Use "move-whisperer generate" to save files.'));
         console.log('');
       } catch (error) {
         spinner.fail(chalk.red('Preview failed'));
@@ -100,7 +100,7 @@ function validateNetwork(network: string): Network {
 }
 
 function handleError(error: unknown, verbose: boolean): void {
-  if (error instanceof AutoSuiSkillsError) {
+  if (error instanceof MoveWhispererError) {
     console.error(chalk.red(`\n  Error [${error.code}]: ${error.message}`));
     if (error.details && verbose) {
       console.error(chalk.gray(`  Details: ${JSON.stringify(error.details, null, 2)}`));

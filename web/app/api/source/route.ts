@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SuiClient } from '@mysten/sui/client';
+import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc';
+
+export const runtime = 'edge';
 
 type Network = 'mainnet' | 'testnet' | 'devnet';
 
@@ -11,7 +13,7 @@ const NETWORK_URLS: Record<Network, string> = {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await request.json() as { input?: string; network?: string };
     const { input, network = 'mainnet' } = body;
 
     if (!input) {
@@ -41,7 +43,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create Sui client
-    const client = new SuiClient({ url: NETWORK_URLS[network as Network] });
+    const client = new SuiJsonRpcClient({ url: NETWORK_URLS[network as Network], network: network as Network });
 
     // Fetch package object
     const packageObject = await client.getObject({

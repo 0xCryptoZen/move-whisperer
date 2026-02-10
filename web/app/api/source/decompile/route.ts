@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { decompileToMove } from '@/lib/decompiler';
 
+export const runtime = 'edge';
+
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await request.json() as { modules?: Record<string, string> };
     const { modules } = body;
 
     if (!modules || typeof modules !== 'object') {

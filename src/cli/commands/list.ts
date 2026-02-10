@@ -7,7 +7,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import type { Network } from '../../types/index.js';
 import { createMainGenerator } from '../../core/generator.js';
-import { AutoSuiSkillsError } from '../../core/errors.js';
+import { MoveWhispererError } from '../../core/errors.js';
 
 export interface ListOptions {
   network: Network;
@@ -48,7 +48,7 @@ export function createListCommand(): Command {
         }
 
         console.log('');
-        console.log(chalk.gray('  Use "auto-sui-skills generate <packageId>::<module>" to generate a specific module.'));
+        console.log(chalk.gray('  Use "move-whisperer generate <packageId>::<module>" to generate a specific module.'));
         console.log('');
       } catch (error) {
         spinner.fail(chalk.red('Failed to list modules'));
@@ -69,7 +69,7 @@ function validateNetwork(network: string): Network {
 }
 
 function handleError(error: unknown, verbose: boolean): void {
-  if (error instanceof AutoSuiSkillsError) {
+  if (error instanceof MoveWhispererError) {
     console.error(chalk.red(`\n  Error [${error.code}]: ${error.message}`));
     if (error.details && verbose) {
       console.error(chalk.gray(`  Details: ${JSON.stringify(error.details, null, 2)}`));

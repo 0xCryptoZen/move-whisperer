@@ -1,0 +1,63 @@
+# MoveWhisperer Cloudflare Configuration (web deployment)
+name = "move-whisperer"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat_v2"]
+
+# For Next.js on Cloudflare Pages
+pages_build_output_dir = ".vercel/output/static"
+
+# D1 Database - SQLite for user data and skill history
+[[d1_databases]]
+binding = "DB"
+database_name = "move-whisperer-db"
+database_id = "58d17186-de4c-4391-a00e-f4db18978f23"
+
+# KV Namespace - For caching and session nonces
+[[kv_namespaces]]
+binding = "CACHE"
+id = "0392e93d74de4b8d98ca71446613d8c9"
+
+# Environment variables (non-sensitive)
+[vars]
+NEXT_PUBLIC_APP_URL = "https://move-whisperer.pages.dev"
+JWT_ISSUER = "move-whisperer"
+JWT_AUDIENCE = "web"
+SESSION_MAX_AGE = "2592000"  # 30 days in seconds
+
+# Secrets (set via: wrangler pages secret put JWT_SECRET --project-name move-whisperer)
+# - JWT_SECRET
+
+# Preview environment (for PR deployments)
+[env.preview.vars]
+NEXT_PUBLIC_APP_URL = "https://move-whisperer.pages.dev"
+JWT_ISSUER = "move-whisperer"
+JWT_AUDIENCE = "web"
+SESSION_MAX_AGE = "2592000"
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "move-whisperer-db"
+database_id = "58d17186-de4c-4391-a00e-f4db18978f23"
+
+[[env.preview.kv_namespaces]]
+binding = "CACHE"
+id = "0392e93d74de4b8d98ca71446613d8c9"
+
+# Production environment
+[env.production]
+name = "move-whisperer"
+
+[env.production.vars]
+NEXT_PUBLIC_APP_URL = "https://move-whisperer.pages.dev"
+JWT_ISSUER = "move-whisperer"
+JWT_AUDIENCE = "web"
+SESSION_MAX_AGE = "2592000"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "move-whisperer-db"
+database_id = "58d17186-de4c-4391-a00e-f4db18978f23"
+
+[[env.production.kv_namespaces]]
+binding = "CACHE"
+id = "0392e93d74de4b8d98ca71446613d8c9"

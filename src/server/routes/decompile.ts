@@ -51,7 +51,7 @@ export async function handleDecompile(
   // Check if move-decompiler is available
   const hasDecompiler = await commandExists('move-decompiler');
   if (!hasDecompiler) {
-    sendError(res, 'move-decompiler CLI not found. Run: bun run install:revela', 503);
+    sendError(res, 'move-decompiler CLI not found. Run: pnpm run install:revela', 503);
     return;
   }
 

@@ -1,14 +1,18 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import { Header } from '@/components/layout/header';
 
 const inter = Inter({ subsets: ['latin'] });
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+});
 
 export const metadata: Metadata = {
-  title: 'auto-sui-skills',
-  description: 'Auto-generate Claude skills from Sui Move contracts',
+  title: 'MoveWhisperer',
+  description: 'MoveWhisperer - The AI that speaks Move',
 };
 
 export default function RootLayout({
@@ -18,14 +22,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={`${inter.className} ${jetbrainsMono.variable}`}>
         <Providers>
-          {/* Animated background orbs */}
-          <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-            <div className="bg-orb w-[600px] h-[600px] bg-primary/20 -top-[200px] -left-[200px]" />
-            <div className="bg-orb w-[500px] h-[500px] bg-accent/10 top-[40%] -right-[150px]" style={{ animationDelay: '-5s' }} />
-            <div className="bg-orb w-[400px] h-[400px] bg-primary/15 bottom-[10%] left-[20%]" style={{ animationDelay: '-10s' }} />
-          </div>
+          {/* Cyber grid background */}
+          <div className="fixed inset-0 cyber-grid-bg pointer-events-none z-0" />
+
+          {/* Subtle scanline overlay */}
+          <div className="scanline-overlay pointer-events-none" />
+
+          {/* CRT vignette */}
+          <div className="crt-vignette pointer-events-none" />
 
           <div className="relative z-10 min-h-screen flex flex-col">
             <Header />

@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LocalServerStatus } from '../LocalServerStatus';
+import AuthButton from '../AuthButton';
+import { LanguageSwitcher } from '../LanguageSwitcher';
 
 export function Header() {
   const pathname = usePathname();
@@ -10,17 +12,21 @@ export function Header() {
   const navItems = [
     { href: '/', label: 'Home' },
     { href: '/generate', label: 'Generate' },
+    { href: '/audit', label: 'Audit' },
+    { href: '/tx', label: 'TX Analyzer' },
+    { href: '/marketplace', label: 'Marketplace' },
+    { href: '/playground', label: 'Playground' },
   ];
 
   return (
     <header className="sticky top-0 z-50 w-full">
-      <div className="glass-panel border-t-0 border-x-0 rounded-none">
+      <div className="glass-panel border-t-0 border-x-0 rounded-none cyber-bottom-line relative">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-glow-sm group-hover:shadow-glow transition-shadow duration-300">
+            <div className="w-8 h-8 rounded bg-gradient-to-br from-[var(--neon-cyan)] to-[var(--neon-magenta)] flex items-center justify-center shadow-[0_0_12px_rgba(0,240,255,0.4)] group-hover:shadow-[0_0_20px_rgba(0,240,255,0.6)] transition-shadow duration-300">
               <svg
-                className="w-5 h-5 text-primary-foreground"
+                className="w-5 h-5 text-[var(--cyber-black)]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -33,8 +39,11 @@ export function Header() {
                 />
               </svg>
             </div>
-            <span className="font-semibold text-lg tracking-tight">
-              auto-sui-skills
+            <span
+              className="font-semibold text-lg tracking-tight glitch-hover neon-text"
+              data-text="MoveWhisperer"
+            >
+              MoveWhisperer
             </span>
           </Link>
 
@@ -44,29 +53,33 @@ export function Header() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`relative px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+                className={`relative px-4 py-2 text-sm font-medium transition-all duration-300 neon-link ${
                   pathname === item.href
-                    ? 'text-primary bg-primary/10'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                    ? 'text-[var(--neon-cyan)]'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {item.label}
+                <span className="font-mono-cyber text-xs tracking-wider uppercase">{item.label}</span>
                 {pathname === item.href && (
-                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary shadow-glow-sm" />
+                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full h-[1px] bg-[var(--neon-cyan)] shadow-[0_0_8px_var(--neon-cyan)]" />
                 )}
               </Link>
             ))}
           </nav>
 
-          {/* Server Status & GitHub */}
+          {/* Server Status, Auth & GitHub */}
           <div className="flex items-center gap-4">
             <LocalServerStatus />
-            <div className="w-px h-4 bg-white/10" />
+            <div className="w-px h-4 bg-[rgba(var(--neon-cyan-rgb),0.15)]" />
+            <AuthButton />
+            <div className="w-px h-4 bg-[rgba(var(--neon-cyan-rgb),0.15)]" />
+            <LanguageSwitcher />
+            <div className="w-px h-4 bg-[rgba(var(--neon-cyan-rgb),0.15)]" />
             <a
-              href="https://github.com/example/auto-sui-skills"
+              href="https://github.com/example/move-whisperer"
               target="_blank"
               rel="noopener noreferrer"
-              className="p-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300"
+              className="p-2 text-muted-foreground hover:text-[var(--neon-cyan)] hover:drop-shadow-[0_0_8px_rgba(0,240,255,0.5)] transition-all duration-300"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path

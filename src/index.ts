@@ -1,6 +1,6 @@
 /**
- * auto-sui-skills
- * Auto-generate Claude skills from Sui Move contracts
+ * MoveWhisperer
+ * The AI that speaks Move
  */
 
 // Type exports

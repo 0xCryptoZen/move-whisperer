@@ -7,7 +7,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import type { Network, SkillScene } from '../../types/index.js';
 import { createMainGenerator } from '../../core/generator.js';
-import { AutoSuiSkillsError } from '../../core/errors.js';
+import { MoveWhispererError } from '../../core/errors.js';
 import { isValidScene, getSceneDisplayName, SCENE_CONFIGS } from '../../scenes/index.js';
 
 export interface GenerateOptions {
@@ -128,7 +128,7 @@ function validateScene(scene: string): SkillScene {
 }
 
 function handleError(error: unknown, verbose: boolean): void {
-  if (error instanceof AutoSuiSkillsError) {
+  if (error instanceof MoveWhispererError) {
     console.error(chalk.red(`\n  Error [${error.code}]: ${error.message}`));
     if (error.details && verbose) {
       console.error(chalk.gray(`  Details: ${JSON.stringify(error.details, null, 2)}`));

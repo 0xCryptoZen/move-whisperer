@@ -4,32 +4,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Package Manager
 
-**This project uses Bun.** Always use `bun` instead of `npm`, `yarn`, or `pnpm`.
+**This project uses pnpm.** Always use `pnpm` instead of `npm`, `yarn`, or `bun`.
 
 ## Build & Development Commands
 
 ```bash
 # Root package
-bun run build           # Compile TypeScript → dist/
-bun run dev             # Watch-mode compilation
-bun run cli <args>      # Run CLI directly (ts-node)
-bun run serve           # Start local HTTP/WebSocket server (port 3456)
-bun run test            # Run tests (watch mode)
-bun run test:run        # Run tests once
-bun run lint            # ESLint check
-bun run format          # Prettier format
+pnpm run build           # Compile TypeScript → dist/
+pnpm run dev             # Watch-mode compilation
+pnpm run cli <args>      # Run CLI directly (tsx)
+pnpm run serve           # Start local HTTP/WebSocket server (port 3456)
+pnpm run test            # Run tests (watch mode)
+pnpm run test:run        # Run tests once
+pnpm run lint            # ESLint check
+pnpm run format          # Prettier format
 
 # Web UI
-cd web && bun dev       # Next.js dev server (port 3000)
-cd web && bun run build # Production build
+cd web && pnpm dev       # Next.js dev server (port 3000)
+cd web && pnpm run build # Production build
 
 # Install dependencies
-bun install             # Install all dependencies
+pnpm install             # Install all dependencies
 ```
 
 ## Architecture Overview
 
-**auto-sui-skills** generates professional Claude SKILL.md files from Sui Move smart contracts. It consists of four main components:
+**MoveWhisperer** generates professional Claude SKILL.md files from Sui Move smart contracts. It consists of four main components:
 
 1. **Core CLI Tool** (`src/cli/`) - Command-line interface with 5 commands: generate, preview, list, source, serve
 2. **Generation Engine** (`src/core/`, `src/generator/`, `src/templates/`) - Contract analysis and skill template generation
@@ -96,7 +96,7 @@ interface AnalyzedModule {
 
 ## Local Server Integration
 
-The local server (`pnpm serve`) bridges the web UI with local CLI tools:
+The local server (`pnpm run serve`) bridges the web UI with local CLI tools:
 
 - **Port 3456** (configurable via `PORT` env)
 - **Endpoints:**
@@ -144,7 +144,7 @@ brew install openssl cmake
 
 **One-click install:**
 ```bash
-bun run install:revela
+pnpm run install:revela
 ```
 
 **Manual install:**

@@ -5,7 +5,6 @@ import { useLocalServer } from '../hooks/useLocalServer';
 export function LocalServerStatus() {
   const { isConnected, isConnecting, health, error, connect } = useLocalServer({
     autoConnect: true,
-    pollInterval: 30000, // Check every 30 seconds instead of 10
   });
 
   return (
@@ -133,7 +132,7 @@ export function RequireLocalServer({
           or
         </p>
         <code className="px-4 py-2 rounded-lg bg-black/50 text-green-400 font-mono text-sm mb-6">
-          npx auto-sui-skills serve
+          npx move-whisperer serve
         </code>
         <button
           onClick={() => connect()}

@@ -355,22 +355,128 @@ export function registerHelpers(handlebars: typeof Handlebars): void {
     );
   });
 
-  // Check if function uses arithmetic
+  // Check if functions involve financial arithmetic (DeFi-specific)
   handlebars.registerHelper('usesArithmetic', (
-    functions: Array<{semantic?: {category?: string}}>
+    functions: Array<{parameters?: Array<{tsType?: string}>; semantic?: {category?: string}}>
   ) => {
     if (!Array.isArray(functions)) return false;
-    return functions.some(f =>
-      f.semantic?.category === 'dex' ||
-      f.semantic?.category === 'transfer' ||
-      f.semantic?.category === 'staking'
-    );
+    const defiCategories = ['dex', 'lending', 'staking', 'rewards'];
+    return functions.some(f => {
+      const isFinancial = defiCategories.includes(f.semantic?.category || '');
+      const handlesNumbers = f.parameters?.some(p =>
+        ['number', 'bigint', 'bigint | string'].includes(p.tsType || '')
+      );
+      return isFinancial && handlesNumbers;
+    });
   });
 
-  // Check if structs have shared objects
-  handlebars.registerHelper('hasSharedObjects', (structs: Array<{abilities?: string[]}>) => {
+  // Arithmetic risk status with evidence
+  handlebars.registerHelper('arithmeticRiskStatus', (
+    functions: Array<{parameters?: Array<{tsType?: string}>; semantic?: {category?: string}}>
+  ) => {
+    if (!Array.isArray(functions)) return 'N/A';
+    const defiCategories = ['dex', 'lending', 'staking', 'rewards'];
+    const financialWithNumbers = functions.some(f => {
+      const isFinancial = defiCategories.includes(f.semantic?.category || '');
+      const handlesNumbers = f.parameters?.some(p =>
+        ['number', 'bigint', 'bigint | string'].includes(p.tsType || '')
+      );
+      return isFinancial && handlesNumbers;
+    });
+    if (financialWithNumbers) {
+      return 'Review: Financial calculations detected (check intermediate overflow, precision loss)';
+    }
+    return 'Low Risk: No financial arithmetic patterns detected';
+  });
+
+  // Check if structs have shared objects (excluding capabilities and events)
+  handlebars.registerHelper('hasSharedObjects', (structs: Array<{
+    name?: string;
+    abilities?: string[];
+    fields?: Array<{name: string; tsType: string}>;
+  }>) => {
     if (!Array.isArray(structs)) return false;
-    return structs.some(s => s.abilities?.includes('key'));
+    return structs.some(s => isSharedObjectStruct(s));
+  });
+
+  // Identify actual shared objects (not capabilities, not events)
+  handlebars.registerHelper('identifySharedObjects', (structs: Array<{
+    name?: string;
+    abilities?: string[];
+    fields?: Array<{name: string; tsType: string}>;
+  }>) => {
+    if (!Array.isArray(structs)) return [];
+    return structs.filter(s => isSharedObjectStruct(s));
+  });
+
+  // Find functions that mutate a specific struct type (take &mut StructName)
+  handlebars.registerHelper('findMutationFunctions', (
+    functions: Array<{name?: string; parameters?: Array<{name?: string; tsType?: string; moveType?: unknown}>}>,
+    structName: string
+  ) => {
+    if (!Array.isArray(functions) || !structName) return [];
+    return functions
+      .filter(f => f.parameters?.some(p => {
+        const isMutRef = p.moveType && typeof p.moveType === 'object' &&
+          'MutableReference' in (p.moveType as object);
+        const matchesType = p.tsType?.includes(structName);
+        return isMutRef && matchesType;
+      }))
+      .map(f => {
+        const guardParam = f.parameters?.find(p => isCapabilityParam(p));
+        return {
+          funcName: f.name,
+          hasCapabilityGuard: !!guardParam,
+          guardName: guardParam?.tsType || '',
+        };
+      });
+  });
+
+  // Analyze shared object mutation protection status
+  handlebars.registerHelper('sharedObjectMutationStatus', (
+    functions: Array<{name?: string; parameters?: Array<{name?: string; tsType?: string; moveType?: unknown}>}>,
+    structs: Array<{name?: string; abilities?: string[]; fields?: Array<{name: string; tsType: string}>}>
+  ) => {
+    const sharedObjects = (structs || []).filter(s => isSharedObjectStruct(s));
+    if (sharedObjects.length === 0) return 'N/A: No shared objects';
+
+    let unprotectedCount = 0;
+    for (const obj of sharedObjects) {
+      const mutators = (functions || []).filter(f =>
+        f.parameters?.some(p => {
+          const isMut = p.moveType && typeof p.moveType === 'object' &&
+            'MutableReference' in (p.moveType as object);
+          return isMut && p.tsType?.includes(obj.name || '');
+        })
+      );
+      for (const mutator of mutators) {
+        if (!mutator.parameters?.some(p => isCapabilityParam(p))) {
+          unprotectedCount++;
+        }
+      }
+    }
+
+    if (unprotectedCount > 0) return `Review: ${unprotectedCount} unprotected mutation path(s)`;
+    return 'Pass: All mutation paths are capability-guarded';
+  });
+
+  // Check access control status for admin/config functions
+  handlebars.registerHelper('accessControlStatus', (
+    functions: Array<{name?: string; parameters?: Array<{name?: string; tsType?: string}>; semantic?: {category?: string}}>
+  ) => {
+    if (!Array.isArray(functions)) return 'N/A';
+    const adminFuncs = functions.filter(f =>
+      f.semantic?.category === 'admin' || f.semantic?.category === 'config'
+    );
+    if (adminFuncs.length === 0) return 'N/A: No admin functions';
+    const unprotected = adminFuncs.filter(f =>
+      !f.parameters?.some(p => isCapabilityParam(p))
+    );
+    if (unprotected.length > 0) {
+      const names = unprotected.map(f => f.name).join(', ');
+      return `Review: ${unprotected.length} admin function(s) without capability checks (${names})`;
+    }
+    return 'Pass: All admin functions require capabilities';
   });
 
   // Check if functions use Clock
@@ -395,15 +501,29 @@ export function registerHelpers(handlebars: typeof Handlebars): void {
     );
   });
 
-  // Check if parameter requires capability
+  // Check if parameter requires capability (broad detection)
   handlebars.registerHelper('requiresCapability', (
     params: Array<{name?: string; tsType?: string}>
   ) => {
     if (!Array.isArray(params)) return false;
-    return params.some(p =>
-      p.name?.toLowerCase().includes('cap') ||
-      p.tsType?.includes('Cap')
-    );
+    return params.some(p => isCapabilityParam(p));
+  });
+
+  // Broader capability detection (alias for template clarity)
+  handlebars.registerHelper('requiresCapabilityDeep', (
+    params: Array<{name?: string; tsType?: string; moveType?: unknown}>
+  ) => {
+    if (!Array.isArray(params)) return false;
+    return params.some(p => isCapabilityParam(p));
+  });
+
+  // Get the capability parameter name for display
+  handlebars.registerHelper('capabilityParamName', (
+    params: Array<{name?: string; tsType?: string}>
+  ) => {
+    if (!Array.isArray(params)) return '';
+    const cap = params.find(p => isCapabilityParam(p));
+    return cap ? `${cap.name}: ${cap.tsType}` : '';
   });
 
   // Check if function modifies state
@@ -498,6 +618,40 @@ export function registerHelpers(handlebars: typeof Handlebars): void {
     }
     return JSON.stringify(moveType);
   });
+}
+
+// Case-insensitive ability check (handles both 'Key' and 'key' from different SDK versions)
+function hasAbility(abilities: string[], ability: string): boolean {
+  const lower = ability.toLowerCase();
+  return abilities.some(a => a.toLowerCase() === lower);
+}
+
+// Check if a struct is likely a shared object (not a capability, not an event)
+function isSharedObjectStruct(s: {
+  name?: string;
+  abilities?: string[];
+  fields?: Array<{name: string; tsType: string}>;
+}): boolean {
+  if (!s.abilities || !hasAbility(s.abilities, 'key')) return false;
+  // Exclude capability objects
+  if (isCapabilityName(s.name || '')) return false;
+  // Exclude event structs (Copy+Drop)
+  if (hasAbility(s.abilities, 'copy') && hasAbility(s.abilities, 'drop')) return false;
+  // Must have UID field (indicates a Sui object)
+  const hasUid = s.fields?.some(f => f.tsType === 'UID' || f.name === 'id');
+  return !!hasUid;
+}
+
+// Check if a name matches capability patterns
+function isCapabilityName(name: string): boolean {
+  return /Cap$|Capability$|AdminCap|OwnerCap|Auth$|Ticket$|Witness$/i.test(name);
+}
+
+// Check if a parameter is a capability parameter (broad detection)
+function isCapabilityParam(p: {name?: string; tsType?: string}): boolean {
+  const nameMatch = /cap$|_cap$|admin_cap|owner_cap|auth$|_auth$|ticket$|witness$/i.test(p.name || '');
+  const typeMatch = /Cap>?$|AdminCap|OwnerCap|Auth>?$|Ticket|Witness/i.test(p.tsType || '');
+  return nameMatch || typeMatch;
 }
 
 // Helper function for recursive move type formatting

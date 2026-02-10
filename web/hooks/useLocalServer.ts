@@ -10,13 +10,14 @@ import {
   ServerHealth,
   DecompileResult,
   ClaudeResult,
+  PackageVersionHistory,
+  VersionCompareResult,
   getLocalServerClient,
 } from '../lib/local-server';
 
 export interface UseLocalServerOptions {
   baseUrl?: string;
   autoConnect?: boolean;
-  pollInterval?: number;
 }
 
 export interface UseLocalServerReturn {
@@ -61,15 +62,42 @@ export interface UseLocalServerReturn {
     options?: { cwd?: string }
   ) => Promise<{ stdout: string; stderr: string; exitCode: number; success: boolean }>;
   isExecutingTerminal: boolean;
+
+  // Version History
+  getVersionHistory: (
+    packageId: string,
+    network?: 'mainnet' | 'testnet' | 'devnet'
+  ) => Promise<PackageVersionHistory>;
+  compareVersions: (
+    packageId: string,
+    fromVersion: number,
+    toVersion: number,
+    options?: {
+      network?: 'mainnet' | 'testnet' | 'devnet';
+      diffType?: 'structural' | 'source' | 'both';
+      module?: string;
+    }
+  ) => Promise<VersionCompareResult>;
+  analyzeVersionChanges: (
+    fromVersion: number,
+    toVersion: number,
+    comparison: VersionCompareResult,
+    options?: {
+      packageId?: string;
+      network?: 'mainnet' | 'testnet' | 'devnet';
+    }
+  ) => Promise<string>;
+  isFetchingHistory: boolean;
+  isComparingVersions: boolean;
+  isAnalyzingChanges: boolean;
 }
 
 export function useLocalServer(
   options: UseLocalServerOptions = {}
 ): UseLocalServerReturn {
-  const { baseUrl, autoConnect = true, pollInterval = 5000 } = options;
+  const { baseUrl, autoConnect = true } = options;
 
   const clientRef = useRef<LocalServerClient | null>(null);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Connection state
   const [isConnected, setIsConnected] = useState(false);
@@ -84,13 +112,16 @@ export function useLocalServer(
   const [isExecutingClaude, setIsExecutingClaude] = useState(false);
   const [claudeOutput, setClaudeOutput] = useState('');
   const [isExecutingTerminal, setIsExecutingTerminal] = useState(false);
+  const [isFetchingHistory, setIsFetchingHistory] = useState(false);
+  const [isComparingVersions, setIsComparingVersions] = useState(false);
+  const [isAnalyzingChanges, setIsAnalyzingChanges] = useState(false);
 
   // Initialize client
   useEffect(() => {
     clientRef.current = getLocalServerClient(baseUrl);
   }, [baseUrl]);
 
-  // Check health
+  // Check health (HTTP fallback for manual use)
   const checkHealth = useCallback(async (): Promise<ServerHealth> => {
     if (!clientRef.current) {
       throw new Error('Client not initialized');
@@ -103,20 +134,33 @@ export function useLocalServer(
     return healthResult;
   }, []);
 
-  // Connect to server
+  // Connect via WebSocket (primary method)
   const connect = useCallback(async () => {
+    if (!clientRef.current) return;
     setIsConnecting(true);
     setError(null);
 
     try {
-      await checkHealth();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Connection failed');
-      setIsConnected(false);
+      await clientRef.current.ensureWebSocket();
+      // Health data will arrive via WebSocket push, but mark as connected
+      setIsConnected(true);
+    } catch {
+      // WebSocket failed, try HTTP fallback
+      try {
+        const healthResult = await clientRef.current.checkHealth();
+        setHealth(healthResult);
+        setIsConnected(healthResult.status !== 'offline');
+        if (healthResult.status === 'offline') {
+          setError('Server offline');
+        }
+      } catch {
+        setError('Connection failed');
+        setIsConnected(false);
+      }
     } finally {
       setIsConnecting(false);
     }
-  }, [checkHealth]);
+  }, []);
 
   // Disconnect
   const disconnect = useCallback(() => {
@@ -127,23 +171,37 @@ export function useLocalServer(
     setHealth(null);
   }, []);
 
-  // Auto-connect and poll
+  // Auto-connect via WebSocket and listen for health pushes
   useEffect(() => {
-    if (autoConnect) {
-      connect();
+    if (!autoConnect) return;
 
-      // Poll for health status
-      pollIntervalRef.current = setInterval(() => {
-        checkHealth().catch(console.error);
-      }, pollInterval);
+    const client = clientRef.current;
+    if (!client) return;
 
-      return () => {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-        }
-      };
-    }
-  }, [autoConnect, connect, checkHealth, pollInterval]);
+    // Listen for health pushes from server
+    const unsubHealth = client.onMessage('health', (data: unknown) => {
+      const msg = data as { data: ServerHealth };
+      if (msg.data) {
+        setHealth(msg.data);
+        setIsConnected(msg.data.status !== 'offline');
+        setError(null);
+      }
+    });
+
+    // Handle WebSocket disconnect
+    client.onDisconnect(() => {
+      setIsConnected(false);
+      setError('Server disconnected');
+    });
+
+    // Initiate connection
+    connect();
+
+    return () => {
+      unsubHealth();
+      client.onDisconnect(null);
+    };
+  }, [autoConnect, connect]);
 
   // Decompile
   const decompile = useCallback(
@@ -243,6 +301,80 @@ export function useLocalServer(
     []
   );
 
+  // Get version history
+  const getVersionHistory = useCallback(
+    async (
+      packageId: string,
+      network: 'mainnet' | 'testnet' | 'devnet' = 'mainnet'
+    ): Promise<PackageVersionHistory> => {
+      if (!clientRef.current) {
+        throw new Error('Client not initialized');
+      }
+
+      setIsFetchingHistory(true);
+
+      try {
+        return await clientRef.current.getVersionHistory(packageId, network);
+      } finally {
+        setIsFetchingHistory(false);
+      }
+    },
+    []
+  );
+
+  // Compare versions
+  const compareVersions = useCallback(
+    async (
+      packageId: string,
+      fromVersion: number,
+      toVersion: number,
+      opts: {
+        network?: 'mainnet' | 'testnet' | 'devnet';
+        diffType?: 'structural' | 'source' | 'both';
+        module?: string;
+      } = {}
+    ): Promise<VersionCompareResult> => {
+      if (!clientRef.current) {
+        throw new Error('Client not initialized');
+      }
+
+      setIsComparingVersions(true);
+
+      try {
+        return await clientRef.current.compareVersions(packageId, fromVersion, toVersion, opts);
+      } finally {
+        setIsComparingVersions(false);
+      }
+    },
+    []
+  );
+
+  // Analyze version changes with AI
+  const analyzeVersionChanges = useCallback(
+    async (
+      fromVersion: number,
+      toVersion: number,
+      comparison: VersionCompareResult,
+      opts: {
+        packageId?: string;
+        network?: 'mainnet' | 'testnet' | 'devnet';
+      } = {}
+    ): Promise<string> => {
+      if (!clientRef.current) {
+        throw new Error('Client not initialized');
+      }
+
+      setIsAnalyzingChanges(true);
+
+      try {
+        return await clientRef.current.analyzeVersionChanges(fromVersion, toVersion, comparison, opts);
+      } finally {
+        setIsAnalyzingChanges(false);
+      }
+    },
+    []
+  );
+
   return {
     // Connection state
     isConnected,
@@ -269,5 +401,13 @@ export function useLocalServer(
     // Terminal
     executeTerminal,
     isExecutingTerminal,
+
+    // Version History
+    getVersionHistory,
+    compareVersions,
+    analyzeVersionChanges,
+    isFetchingHistory,
+    isComparingVersions,
+    isAnalyzingChanges,
   };
 }

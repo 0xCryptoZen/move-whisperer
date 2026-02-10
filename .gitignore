@@ -22,6 +22,7 @@ npm-debug.log*
 .env
 .env.local
 .env.*.local
+.dev.vars
 
 # Test coverage
 coverage/
@@ -45,3 +46,14 @@ web/.next/
 
 # Bun lockfile (use pnpm)
 bun.lock
+
+# Wrangler local state
+.wrangler/
+web/.wrangler/
+
+# Vercel build output
+web/.vercel/
+
+# Claude Code
+.claude/
+

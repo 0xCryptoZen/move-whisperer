@@ -25,6 +25,9 @@ interface ParameterContext {
   hasTxContext: boolean;
   coinTypes: string[];
   objectTypes: string[];
+  mutableObjectTypes: string[];
+  hasCapabilityParam: boolean;
+  capabilityParamNames: string[];
 }
 
 /**
@@ -143,7 +146,12 @@ export class SemanticInference {
       hasTxContext: false,
       coinTypes: [],
       objectTypes: [],
+      mutableObjectTypes: [],
+      hasCapabilityParam: false,
+      capabilityParamNames: [],
     };
+
+    const capPattern = /cap$|_cap$|admin|auth$|_auth$|ticket$|witness$|owner_cap/i;
 
     for (const param of params) {
       // Check for coin types
@@ -155,16 +163,33 @@ export class SemanticInference {
         }
       }
 
-      // Check for admin capabilities
+      // Check for admin capabilities (narrow - backward compat)
       if (param.name.toLowerCase().includes('cap') ||
           param.name.toLowerCase().includes('admin') ||
           param.tsType.toLowerCase().includes('admincap')) {
         context.hasAdminCap = true;
       }
 
+      // Broad capability detection (includes Auth, Ticket, Witness, etc.)
+      if (capPattern.test(param.name) || capPattern.test(param.tsType) ||
+          /Cap>?$|AdminCap|OwnerCap|Auth>?$|Ticket|Witness/i.test(param.tsType)) {
+        context.hasCapabilityParam = true;
+        context.capabilityParamNames.push(param.name);
+      }
+
       // Check for TxContext
       if (param.isAutoInjected) {
         context.hasTxContext = true;
+      }
+
+      // Track mutable reference types
+      if (param.moveType && typeof param.moveType === 'object' &&
+          'MutableReference' in (param.moveType as object)) {
+        context.hasMutableRef = true;
+        const typeName = this.extractTypeName(param.moveType);
+        if (typeName) {
+          context.mutableObjectTypes.push(typeName);
+        }
       }
 
       // Track object types
@@ -174,6 +199,21 @@ export class SemanticInference {
     }
 
     return context;
+  }
+
+  /**
+   * Extract type name from a normalized Move type
+   */
+  private extractTypeName(moveType: unknown): string | null {
+    if (typeof moveType !== 'object' || moveType === null) return null;
+    const mt = moveType as Record<string, unknown>;
+    if (mt.MutableReference) return this.extractTypeName(mt.MutableReference);
+    if (mt.Reference) return this.extractTypeName(mt.Reference);
+    if (mt.Struct) {
+      const s = mt.Struct as { name: string };
+      return s.name;
+    }
+    return null;
   }
 
   /**
@@ -200,13 +240,26 @@ export class SemanticInference {
       if (risk !== 'critical') {
         risk = 'high';
       }
-      warnings.push('This function requires admin capabilities.');
       tags.push('admin');
     }
 
-    // Add context-based warnings
-    if (risk === 'high' || risk === 'critical') {
-      warnings.push('This is a high-risk operation. Review carefully before executing.');
+    // Downgrade warnings for capability-protected admin/config functions
+    if (context.hasCapabilityParam && (category === 'config' || category === 'admin')) {
+      warnings.push(`Protected by capability (${context.capabilityParamNames.join(', ')}) - verify creation is restricted to init().`);
+    } else if (context.hasAdminCap) {
+      warnings.push('This function requires admin capabilities.');
+    }
+
+    // Flag unprotected mutations on shared-like objects
+    if (context.hasMutableRef && !context.hasCapabilityParam && category !== 'query') {
+      if (category === 'admin' || category === 'config') {
+        warnings.push('Modifies state without detected capability guard - verify access control.');
+      }
+    }
+
+    // Add context-based warnings for high-risk operations without capability protection
+    if ((risk === 'high' || risk === 'critical') && !context.hasCapabilityParam) {
+      warnings.push('This is a high-risk operation without detected capability guard. Review carefully.');
     }
 
     if (context.hasCoin) {

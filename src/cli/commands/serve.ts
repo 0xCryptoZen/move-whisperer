@@ -18,7 +18,7 @@ export function createServeCommand(): Command {
       const port = parseInt(options.port, 10);
       const host = options.host;
 
-      console.log(chalk.cyan('Starting Auto Sui Skill server...'));
+      console.log(chalk.cyan('Starting MoveWhisperer server...'));
 
       startServer({ port, host });
 

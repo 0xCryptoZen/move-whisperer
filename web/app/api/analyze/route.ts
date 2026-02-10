@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SuiClient } from '@mysten/sui/client';
+import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc';
+
+export const runtime = 'edge';
 
 const NETWORK_URLS: Record<string, string> = {
   mainnet: 'https://fullnode.mainnet.sui.io',
   testnet: 'https://fullnode.testnet.sui.io',
   devnet: 'https://fullnode.devnet.sui.io',
 };
-
-const LOCAL_SERVER_URL = process.env.LOCAL_SERVER_URL || 'http://localhost:3456';
 
 interface AnalyzeRequest {
   packageId: string;
@@ -61,41 +61,8 @@ interface ContractAnalysis {
 }
 
 /**
- * Analyze contract using local server's AI analyzer
- */
-async function analyzeWithLocalServer(
-  packageId: string,
-  moduleName: string,
-  sourceCode: string,
-  network: string
-): Promise<ContractAnalysis | null> {
-  try {
-    const response = await fetch(`${LOCAL_SERVER_URL}/api/analyze-contract`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        packageId,
-        moduleName,
-        sourceCode,
-        network,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error('[Analyze] Local server error:', await response.text());
-      return null;
-    }
-
-    const data = await response.json();
-    return data.analysis;
-  } catch (error) {
-    console.error('[Analyze] Failed to connect to local server:', error);
-    return null;
-  }
-}
-
-/**
- * Fallback regex-based analysis
+ * Regex-based analysis (runs on edge)
+ * For AI-powered analysis, use the local server directly from the browser.
  */
 function analyzeWithRegex(sourceCode: string, packageId: string, moduleName: string): ContractAnalysis {
   // Extract error codes
@@ -190,7 +157,7 @@ function analyzeWithRegex(sourceCode: string, packageId: string, moduleName: str
   };
 
   const patterns = categoryPatterns[category] || {};
-  for (const generic of genericSet) {
+  for (const generic of Array.from(genericSet)) {
     generics.mapping[generic] = patterns[generic] || {
       name: `Type Parameter ${generic}`,
       description: `Generic type parameter ${generic}`,
@@ -239,7 +206,7 @@ function inferErrorCategory(name: string): ContractAnalysis['errorCodes'][0]['ca
  * Fetch and decompile source code
  */
 async function fetchSourceCode(
-  client: SuiClient,
+  client: SuiJsonRpcClient,
   packageId: string,
   moduleName: string
 ): Promise<string | null> {
@@ -254,7 +221,8 @@ async function fetchSourceCode(
     const content = packageObj.data.content;
     if (content.dataType !== 'package' || !content.disassembled) return null;
 
-    return content.disassembled[moduleName] || null;
+    const moduleSource = content.disassembled[moduleName];
+    return typeof moduleSource === 'string' ? moduleSource : null;
   } catch (error) {
     console.error('[Analyze] Failed to fetch source:', error);
     return null;
@@ -270,7 +238,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Valid packageId is required' }, { status: 400 });
     }
 
-    const client = new SuiClient({ url: NETWORK_URLS[network] });
+    const client = new SuiJsonRpcClient({ url: NETWORK_URLS[network], network });
 
     // Get module name if not provided
     let moduleName = inputModuleName;
@@ -300,11 +268,8 @@ export async function POST(request: NextRequest) {
     // Generate analysis ID
     const analysisId = `${packageId.slice(0, 10)}-${Date.now()}`;
 
-    // Try local server first, fallback to regex
-    let analysis = await analyzeWithLocalServer(packageId, moduleName, sourceCode, network);
-    if (!analysis) {
-      analysis = analyzeWithRegex(sourceCode, packageId, moduleName);
-    }
+    // Regex-based analysis on edge (AI analysis via local server from browser)
+    const analysis = analyzeWithRegex(sourceCode, packageId, moduleName);
 
     return NextResponse.json({
       analysisId,

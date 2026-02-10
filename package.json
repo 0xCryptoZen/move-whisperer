@@ -1,24 +1,28 @@
 {
-  "name": "auto-sui-skills",
+  "name": "move-whisperer",
   "version": "0.1.0",
-  "description": "Auto-generate Claude skills from Sui Move contracts",
+  "description": "MoveWhisperer - The AI that speaks Move",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "auto-sui-skills": "./dist/bin/auto-sui-skills.js"
+    "move-whisperer": "./dist/bin/move-whisperer.js"
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "cli": "bun run bin/auto-sui-skills.ts",
-    "serve": "bun run bin/server.ts",
+    "cli": "tsx bin/move-whisperer.ts",
+    "serve": "tsx bin/server.ts",
+    "stop": "bash scripts/stop.sh",
     "install:revela": "bash scripts/install-revela.sh",
     "test": "vitest",
     "test:run": "vitest run",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "pnpm run build",
+    "cf:migrate": "npx wrangler d1 execute move-whisperer-db --file=migrations/0001_initial_schema.sql && npx wrangler d1 execute move-whisperer-db --file=migrations/0002_marketplace_schema.sql",
+    "cf:dev": "cd web && pnpm run build && npx @cloudflare/next-on-pages && npx wrangler pages dev .vercel/output/static --compatibility-date=2024-01-01 --compatibility-flags=nodejs_compat",
+    "cf:deploy": "cd web && npx @cloudflare/next-on-pages && npx wrangler pages deploy .vercel/output/static --project-name=move-whisperer"
   },
   "keywords": [
     "sui",
@@ -34,17 +38,20 @@
     "@mysten/sui": "^1.16.0",
     "chalk": "^5.3.0",
     "commander": "^12.1.0",
+    "diff": "^8.0.3",
     "handlebars": "^4.7.8",
     "ora": "^8.1.1",
     "ws": "^8.18.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/diff": "^8.0.0",
     "@types/node": "^22.10.7",
     "@types/ws": "^8.5.13",
     "eslint": "^9.18.0",
     "prettier": "^3.4.2",
     "ts-node": "^10.9.2",
+    "tsx": "^4.19.0",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"
   },

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Auto Sui Skill - Local Server CLI
- * Run with: npx auto-sui-skill serve
+ * MoveWhisperer - Local Server CLI
+ * Run with: npx move-whisperer serve
  */
 
 import { startServer } from '../src/server/index.js';
@@ -9,5 +9,5 @@ import { startServer } from '../src/server/index.js';
 const port = parseInt(process.env.PORT || '3456', 10);
 const host = process.env.HOST || '127.0.0.1';
 
-console.log('Starting Auto Sui Skill server...');
+console.log('Starting MoveWhisperer server...');
 startServer({ port, host });

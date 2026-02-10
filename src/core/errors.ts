@@ -1,5 +1,5 @@
 /**
- * Custom error classes for auto-sui-skills
+ * Custom error classes for MoveWhisperer
  */
 
 export enum ErrorCode {
@@ -30,14 +30,14 @@ export enum ErrorCode {
   CONFIG_NOT_FOUND = 'CONFIG_NOT_FOUND',
 }
 
-export class AutoSuiSkillsError extends Error {
+export class MoveWhispererError extends Error {
   constructor(
     message: string,
     public readonly code: ErrorCode,
     public readonly details?: Record<string, unknown>
   ) {
     super(message);
-    this.name = 'AutoSuiSkillsError';
+    this.name = 'MoveWhispererError';
     Error.captureStackTrace(this, this.constructor);
   }
 
@@ -52,7 +52,7 @@ export class AutoSuiSkillsError extends Error {
 }
 
 // Input validation errors
-export class InputValidationError extends AutoSuiSkillsError {
+export class InputValidationError extends MoveWhispererError {
   constructor(message: string, details?: Record<string, unknown>) {
     super(message, ErrorCode.INPUT_VALIDATION, details);
     this.name = 'InputValidationError';
@@ -81,7 +81,7 @@ export class InputValidationError extends AutoSuiSkillsError {
 }
 
 // Network errors
-export class NetworkError extends AutoSuiSkillsError {
+export class NetworkError extends MoveWhispererError {
   constructor(message: string, code: ErrorCode = ErrorCode.NETWORK_ERROR, details?: Record<string, unknown>) {
     super(message, code, details);
     this.name = 'NetworkError';
@@ -129,7 +129,7 @@ export class NetworkError extends AutoSuiSkillsError {
 }
 
 // Type mapping errors
-export class TypeMappingError extends AutoSuiSkillsError {
+export class TypeMappingError extends MoveWhispererError {
   constructor(message: string, details?: Record<string, unknown>) {
     super(message, ErrorCode.TYPE_MAPPING, details);
     this.name = 'TypeMappingError';
@@ -151,7 +151,7 @@ export class TypeMappingError extends AutoSuiSkillsError {
 }
 
 // Template errors
-export class TemplateError extends AutoSuiSkillsError {
+export class TemplateError extends MoveWhispererError {
   constructor(message: string, details?: Record<string, unknown>) {
     super(message, ErrorCode.TEMPLATE_ERROR, details);
     this.name = 'TemplateError';
@@ -173,7 +173,7 @@ export class TemplateError extends AutoSuiSkillsError {
 }
 
 // File system errors
-export class FileSystemError extends AutoSuiSkillsError {
+export class FileSystemError extends MoveWhispererError {
   constructor(message: string, code: ErrorCode = ErrorCode.FILE_SYSTEM, details?: Record<string, unknown>) {
     super(message, code, details);
     this.name = 'FileSystemError';
@@ -213,7 +213,7 @@ export class FileSystemError extends AutoSuiSkillsError {
 }
 
 // Config errors
-export class ConfigError extends AutoSuiSkillsError {
+export class ConfigError extends MoveWhispererError {
   constructor(message: string, code: ErrorCode = ErrorCode.CONFIG_ERROR, details?: Record<string, unknown>) {
     super(message, code, details);
     this.name = 'ConfigError';

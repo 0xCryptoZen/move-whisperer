@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const runtime = 'edge';
+
 interface UserFeedback {
   purpose?: {
     confirmed: boolean;
