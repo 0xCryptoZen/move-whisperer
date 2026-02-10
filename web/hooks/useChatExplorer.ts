@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useChatStore, type BackendMode } from '../lib/stores/chat-store';
 import type { ChatContext } from '../lib/chat-context';
 import type { ServerHealth } from '../lib/local-server';
+import { getAnthropicApiKey } from '../components/ServerConfigPanel';
 
 export interface UsePlaygroundOptions {
   context: ChatContext | null;
@@ -81,9 +82,14 @@ async function sendViaAnthropicAPI(
   onDelta: (text: string) => void,
   abortSignal?: AbortSignal
 ): Promise<boolean> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const userApiKey = getAnthropicApiKey();
+  if (userApiKey) {
+    headers['x-anthropic-key'] = userApiKey;
+  }
   const response = await fetch('/api/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ messages, context }),
     signal: abortSignal,
   });

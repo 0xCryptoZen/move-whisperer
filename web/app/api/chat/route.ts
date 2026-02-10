@@ -14,12 +14,12 @@ interface ChatRequestBody {
 }
 
 export async function POST(request: NextRequest) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  // Accept API key from: 1) env var, 2) request header (user-configured in Settings)
+  const apiKey = process.env.ANTHROPIC_API_KEY || request.headers.get('x-anthropic-key');
   if (!apiKey) {
     return Response.json(
       {
-        error: 'ANTHROPIC_API_KEY not configured',
-        hint: 'Set the ANTHROPIC_API_KEY environment variable, or use the local server with Claude CLI as fallback.',
+        error: 'No API key. Configure it in Settings (gear icon) or start local server (pnpm run serve).',
       },
       { status: 503 }
     );
