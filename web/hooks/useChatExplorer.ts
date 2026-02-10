@@ -159,13 +159,10 @@ export function usePlayground(options: UsePlaygroundOptions): UsePlaygroundRetur
     );
 
     if (isLocalServerConnected && hasClaudeCli) {
-      // Local server available — try Anthropic API first, fall back to local
       setBackendMode('local-claude');
+    } else {
+      setBackendMode('anthropic-api');
     }
-
-    // The Anthropic API path is always attempted first (it returns 503 if no key),
-    // so we start with 'anthropic-api' as optimistic default
-    setBackendMode('anthropic-api');
   }, [isLocalServerConnected, localServerHealth, setBackendMode]);
 
   const sendMessage = useCallback(
@@ -188,34 +185,33 @@ export function usePlayground(options: UsePlaygroundOptions): UsePlaygroundRetur
       abortRef.current = abortController;
 
       try {
-        // Path A: Try Anthropic API first
-        const success = await sendViaAnthropicAPI(
-          apiMessages,
-          context,
-          (text) => appendToLastAssistant(text),
-          abortController.signal
-        );
+        if (isLocalServerConnected) {
+          // Local server available — use Claude CLI directly
+          setBackendMode('local-claude');
+          await sendViaLocalServer(
+            apiMessages,
+            context,
+            (text) => appendToLastAssistant(text),
+            abortController.signal
+          );
+        } else {
+          // No local server — try Anthropic API
+          const success = await sendViaAnthropicAPI(
+            apiMessages,
+            context,
+            (text) => appendToLastAssistant(text),
+            abortController.signal
+          );
 
-        if (!success) {
-          // API key not configured — try local server fallback
-          if (isLocalServerConnected) {
-            setBackendMode('local-claude');
-            await sendViaLocalServer(
-              apiMessages,
-              context,
-              (text) => appendToLastAssistant(text),
-              abortController.signal
-            );
-          } else {
+          if (!success) {
             setBackendMode('none');
-            removeLastMessage(); // remove empty assistant placeholder
+            removeLastMessage();
             setError(
-              'No AI backend available. Set ANTHROPIC_API_KEY env var or start the local server (pnpm run serve).'
+              'No AI backend available. Start the local server (pnpm run serve) to use Claude CLI.'
             );
             setStreaming(false);
             return;
           }
-        } else {
           setBackendMode('anthropic-api');
         }
 

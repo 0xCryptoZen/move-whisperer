@@ -452,7 +452,7 @@ export default function PlaygroundPage() {
           setError(result.error);
         }
       } else {
-        // Use cloud /api/chat (SSE)
+        // No local server — try cloud /api/chat (SSE), needs ANTHROPIC_API_KEY
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -470,7 +470,7 @@ export default function PlaygroundPage() {
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({})) as { error?: string; hint?: string };
-          throw new Error(data.hint || data.error || `Chat failed (${res.status})`);
+          throw new Error(data.error || `Chat failed (${res.status})`);
         }
 
         // Parse SSE stream
