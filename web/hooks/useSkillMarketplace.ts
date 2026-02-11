@@ -113,6 +113,7 @@ export function useSkillMarketplace() {
             contentBytes,
             MARKETPLACE_PACKAGE_ID,
             predictedBlobId,
+            MARKETPLACE_NETWORK,
           );
           blobData = encryptedData;
         } else {

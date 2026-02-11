@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useLocalServer } from '../../hooks/useLocalServer';
 import { useTranslation } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth/context';
@@ -144,6 +144,7 @@ interface IntermediateArtifacts {
 // Wrapper component to handle URL params with Suspense
 function GeneratePageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { t } = useTranslation();
   const { user } = useAuth();
 
@@ -1177,6 +1178,24 @@ function GeneratePageContent() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
                 {saving ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                onClick={() => {
+                  // Store content in sessionStorage and navigate to publish page
+                  sessionStorage.setItem('publish_skill_content', result.skillMd);
+                  sessionStorage.setItem('publish_skill_title', result.packageName);
+                  sessionStorage.setItem('publish_skill_scene', scene);
+                  sessionStorage.setItem('publish_skill_network', result.metadata.network);
+                  sessionStorage.setItem('publish_skill_package_id', result.metadata.packageId);
+                  router.push('/marketplace/submit');
+                }}
+                className="cyber-btn px-4 py-2.5 rounded text-sm font-mono-cyber flex items-center gap-2"
+                style={{ borderColor: 'rgba(var(--neon-amber-rgb), 0.3)', color: 'var(--neon-amber)' }}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
+                </svg>
+                Publish
               </button>
               <button onClick={resetWorkflow} className="cyber-btn px-4 py-2.5 rounded text-sm font-mono-cyber">
                 New

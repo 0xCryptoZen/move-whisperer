@@ -1,5 +1,7 @@
 'use client';
 
+export const runtime = 'edge';
+
 import dynamic from 'next/dynamic';
 
 // Dynamic import to avoid Walrus WASM loading during SSR/static generation

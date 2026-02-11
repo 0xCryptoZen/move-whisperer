@@ -16,8 +16,10 @@ const SEAL_KEY_SERVERS: Record<string, { objectId: string; weight: number }[]> =
     },
   ],
   mainnet: [
-    // TODO: Add mainnet key server IDs when deploying to mainnet
-    // Use getAllowlistedKeyServers from @mysten/seal when available
+    {
+      objectId: '0x1afb3a57211ceff8f6781757821847e3ddae73f64e78ec8cd9349914ad985475',
+      weight: 1,
+    },
   ],
 };
 
@@ -60,9 +62,13 @@ export async function encryptSkillContent(
   content: Uint8Array,
   packageId: string,
   id: string,
+  network: Network = 'testnet',
 ): Promise<{ encryptedData: Uint8Array; backupKey: Uint8Array }> {
+  const servers = SEAL_KEY_SERVERS[network] || SEAL_KEY_SERVERS.testnet;
+  const threshold = Math.min(servers.length, 2);
+
   const { encryptedObject, key } = await client.encrypt({
-    threshold: 2,
+    threshold,
     packageId,
     id,
     data: content,

@@ -30,13 +30,49 @@ export default function SubmitSkillContent() {
   const { user } = useAuth();
   const { publishSkill, publishing, connected, address } = useSkillMarketplace();
 
-  const [step, setStep] = useState<Step>('content');
-  const [content, setContent] = useState('');
-  const [title, setTitle] = useState('');
+  // Pre-fill from sessionStorage if navigating from generate page
+  const [step, setStep] = useState<Step>(() => {
+    if (typeof window !== 'undefined' && sessionStorage.getItem('publish_skill_content')) {
+      return 'metadata';
+    }
+    return 'content';
+  });
+  const [content, setContent] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('publish_skill_content');
+      if (saved) { sessionStorage.removeItem('publish_skill_content'); return saved; }
+    }
+    return '';
+  });
+  const [title, setTitle] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('publish_skill_title');
+      if (saved) { sessionStorage.removeItem('publish_skill_title'); return saved; }
+    }
+    return '';
+  });
   const [description, setDescription] = useState('');
-  const [scene, setScene] = useState('sdk');
-  const [network, setNetwork] = useState('mainnet');
-  const [suiPackageId, setSuiPackageId] = useState('');
+  const [scene, setScene] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('publish_skill_scene');
+      if (saved) { sessionStorage.removeItem('publish_skill_scene'); return saved; }
+    }
+    return 'sdk';
+  });
+  const [network, setNetwork] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('publish_skill_network');
+      if (saved) { sessionStorage.removeItem('publish_skill_network'); return saved; }
+    }
+    return 'mainnet';
+  });
+  const [suiPackageId, setSuiPackageId] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('publish_skill_package_id');
+      if (saved) { sessionStorage.removeItem('publish_skill_package_id'); return saved; }
+    }
+    return '';
+  });
   const [priceSui, setPriceSui] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [publishResult, setPublishResult] = useState<{

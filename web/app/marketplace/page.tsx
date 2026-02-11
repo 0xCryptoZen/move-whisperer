@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/context';
 import { mistToSui } from '@/lib/contracts/skill-marketplace';
 
@@ -128,6 +129,7 @@ const MOCK_SKILLS: Skill[] = [
 
 export default function MarketplacePage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
@@ -141,8 +143,7 @@ export default function MarketplacePage() {
   const [userSkills, setUserSkills] = useState<UserSkillItem[]>([]);
   const [loadingUserSkills, setLoadingUserSkills] = useState(false);
   const [showMySkills, setShowMySkills] = useState(true);
-  const [publishingId, setPublishingId] = useState<string | null>(null);
-  const [publishedIds, setPublishedIds] = useState<Set<string>>(new Set());
+  const [loadingPublishId, setLoadingPublishId] = useState<string | null>(null);
   const [publishError, setPublishError] = useState<string | null>(null);
 
   // Fetch user saved skills
@@ -162,28 +163,28 @@ export default function MarketplacePage() {
 
   useEffect(() => { fetchUserSkills(); }, [fetchUserSkills]);
 
-  // Publish a saved skill to marketplace
-  const handlePublish = async (skillId: string) => {
-    setPublishingId(skillId);
+  // Navigate to submit page with skill content pre-filled
+  const handlePublish = async (skill: UserSkillItem) => {
+    setLoadingPublishId(skill.id);
     setPublishError(null);
     try {
-      const res = await fetch('/api/marketplace/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userSkillId: skillId }),
-      });
-      if (res.ok) {
-        setPublishedIds(prev => new Set(prev).add(skillId));
-        // Refresh marketplace skills
-        setFilters(f => ({ ...f }));
-      } else {
-        const data = await res.json() as { error?: string };
-        setPublishError(data.error || 'Publish failed');
-      }
+      // Fetch full skill content
+      const res = await fetch(`/api/user/skills/${skill.id}`);
+      if (!res.ok) throw new Error('Failed to load skill content');
+      const data = await res.json() as { skill: { skillMd: string } };
+
+      // Store in sessionStorage for submit page
+      sessionStorage.setItem('publish_skill_content', data.skill.skillMd);
+      sessionStorage.setItem('publish_skill_title', skill.title);
+      sessionStorage.setItem('publish_skill_scene', skill.scene);
+      sessionStorage.setItem('publish_skill_network', skill.network);
+      sessionStorage.setItem('publish_skill_package_id', skill.packageId || '');
+
+      router.push('/marketplace/submit');
     } catch {
-      setPublishError('Publish failed');
+      setPublishError('Failed to load skill content');
     } finally {
-      setPublishingId(null);
+      setLoadingPublishId(null);
     }
   };
 
@@ -334,9 +335,8 @@ export default function MarketplacePage() {
                       <UserSkillCard
                         key={skill.id}
                         skill={skill}
-                        publishing={publishingId === skill.id}
-                        published={publishedIds.has(skill.id)}
-                        onPublish={() => handlePublish(skill.id)}
+                        loading={loadingPublishId === skill.id}
+                        onPublish={() => handlePublish(skill)}
                       />
                     ))}
                   </div>
@@ -471,10 +471,9 @@ function SkillCard({ skill }: { skill: Skill }) {
   );
 }
 
-function UserSkillCard({ skill, publishing, published, onPublish }: {
+function UserSkillCard({ skill, loading, onPublish }: {
   skill: UserSkillItem;
-  publishing: boolean;
-  published: boolean;
+  loading: boolean;
   onPublish: () => void;
 }) {
   return (
@@ -502,29 +501,23 @@ function UserSkillCard({ skill, publishing, published, onPublish }: {
         <span className="text-[10px] text-muted-foreground font-mono-cyber">
           {new Date(skill.createdAt).toLocaleDateString()}
         </span>
-        {published ? (
-          <span className="px-3 py-1.5 rounded text-xs font-mono-cyber bg-[rgba(var(--neon-green-rgb),0.08)] text-[var(--neon-green)] border border-[rgba(var(--neon-green-rgb),0.2)]">
-            Published
-          </span>
-        ) : (
-          <button
-            onClick={(e) => { e.preventDefault(); onPublish(); }}
-            disabled={publishing}
-            className="cyber-btn px-3 py-1.5 rounded text-xs font-mono-cyber disabled:opacity-50"
-          >
-            {publishing ? (
-              <span className="flex items-center gap-1.5">
-                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Publishing...
-              </span>
-            ) : (
-              'Publish'
-            )}
-          </button>
-        )}
+        <button
+          onClick={(e) => { e.preventDefault(); onPublish(); }}
+          disabled={loading}
+          className="cyber-btn px-3 py-1.5 rounded text-xs font-mono-cyber disabled:opacity-50"
+        >
+          {loading ? (
+            <span className="flex items-center gap-1.5">
+              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Loading...
+            </span>
+          ) : (
+            'Publish'
+          )}
+        </button>
       </div>
     </div>
   );
