@@ -1,5 +1,6 @@
 import { SuiJsonRpcClient, getJsonRpcFullnodeUrl } from '@mysten/sui/jsonRpc';
 import { Transaction } from '@mysten/sui/transactions';
+import { bcs, fromBase64 } from '@mysten/bcs';
 import type { Network } from '../walrus/types';
 
 // Contract package ID - set via environment variable after deployment
@@ -69,6 +70,21 @@ function stringToBytes(str: string): number[] {
   return Array.from(new TextEncoder().encode(str));
 }
 
+/** Convert base64url to standard base64. */
+function base64urlToBase64(s: string): string {
+  return s.replaceAll('-', '+').replaceAll('_', '/');
+}
+
+/** Convert a Walrus base64url blob ID string to BigInt (u256). */
+function blobIdToInt(blobId: string): bigint {
+  return BigInt(bcs.u256().fromBase64(base64urlToBase64(blobId)));
+}
+
+/** Convert a Walrus base64url blob ID string to raw bytes. */
+function blobIdToBytes(blobId: string): number[] {
+  return Array.from(fromBase64(base64urlToBase64(blobId)));
+}
+
 function parseSkillRecord(objectId: string, fields: SkillRecordFields): SkillRecord {
   return {
     objectId,
@@ -116,7 +132,7 @@ export function buildPublishSkillTx(params: {
   tx.moveCall({
     target: `${MARKETPLACE_PACKAGE_ID}::${MARKETPLACE_MODULE}::publish_skill`,
     arguments: [
-      tx.pure.u256(BigInt(params.blobId)),
+      tx.pure.u256(blobIdToInt(params.blobId)),
       tx.pure.vector('u8', stringToBytes(params.title)),
       tx.pure.vector('u8', stringToBytes(params.description)),
       tx.pure.u64(params.price),
@@ -184,7 +200,7 @@ export function buildSealApproveTx(
   tx.moveCall({
     target: `${MARKETPLACE_PACKAGE_ID}::${MARKETPLACE_MODULE}::seal_approve`,
     arguments: [
-      tx.pure.vector('u8', Array.from(new TextEncoder().encode(sealId))),
+      tx.pure.vector('u8', blobIdToBytes(sealId)),
       tx.object(skillObjectId),
       tx.object(accessCapObjectId),
     ],
@@ -205,7 +221,7 @@ export function buildSealApproveFreeTx(
   tx.moveCall({
     target: `${MARKETPLACE_PACKAGE_ID}::${MARKETPLACE_MODULE}::seal_approve_free`,
     arguments: [
-      tx.pure.vector('u8', Array.from(new TextEncoder().encode(sealId))),
+      tx.pure.vector('u8', blobIdToBytes(sealId)),
       tx.object(skillObjectId),
     ],
   });

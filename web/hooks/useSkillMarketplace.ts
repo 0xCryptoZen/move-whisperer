@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useCurrentAccount, useSignAndExecuteTransaction, useSignPersonalMessage, useSuiClient } from '@mysten/dapp-kit';
 import { Transaction } from '@mysten/sui/transactions';
+import { toHex, fromBase64 } from '@mysten/bcs';
 import { getWalrusClient, downloadSkillBlob } from '@/lib/walrus/client';
 import { getSealClient, createSessionKey, decryptSkillContent, encryptSkillContent, SessionKey } from '@/lib/seal/client';
 import {
@@ -108,11 +109,16 @@ export function useSkillMarketplace() {
           });
           const predictedBlobId = metadata.blobId;
 
+          // Seal's encrypt expects `id` as a hex string, but Walrus blobId is base64url.
+          // Convert base64url → standard base64 → bytes → hex.
+          const blobIdBase64 = predictedBlobId.replaceAll('-', '+').replaceAll('_', '/');
+          const blobIdHex = toHex(fromBase64(blobIdBase64));
+
           const { encryptedData } = await encryptSkillContent(
             sealClient,
             contentBytes,
             MARKETPLACE_PACKAGE_ID,
-            predictedBlobId,
+            blobIdHex,
             MARKETPLACE_NETWORK,
           );
           blobData = encryptedData;
