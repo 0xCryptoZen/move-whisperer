@@ -12,7 +12,6 @@ module skill_marketplace::skill_marketplace {
 
     // ====== Error Codes ======
 
-    const EInvalidPrice: u64 = 0;
     const EInsufficientPayment: u64 = 1;
     const ENotCreator: u64 = 2;
     const ESkillNotPaid: u64 = 3;
@@ -81,7 +80,7 @@ module skill_marketplace::skill_marketplace {
 
     /// Publish a new skill to the marketplace.
     /// The skill content should already be uploaded to Walrus (optionally encrypted with Seal).
-    public entry fun publish_skill(
+    public fun publish_skill(
         blob_id: u256,
         title: vector<u8>,
         description: vector<u8>,
@@ -123,7 +122,7 @@ module skill_marketplace::skill_marketplace {
 
     /// Purchase a paid skill. Payment goes directly to the creator.
     /// Mints an AccessCap to the buyer for Seal decryption authorization.
-    public entry fun purchase_skill(
+    public fun purchase_skill(
         skill: &mut SkillRecord,
         mut payment: Coin<SUI>,
         clock: &Clock,
@@ -166,7 +165,7 @@ module skill_marketplace::skill_marketplace {
     }
 
     /// Claim access to a free skill. No payment required.
-    public entry fun claim_free_skill(
+    public fun claim_free_skill(
         skill: &SkillRecord,
         clock: &Clock,
         ctx: &mut TxContext,
@@ -202,7 +201,7 @@ module skill_marketplace::skill_marketplace {
         // Decode the skill ID from the BCS-encoded id
         let mut prepared = bcs::new(id);
         let skill_id_bytes = prepared.peel_address();
-        let target_id = object::id_from_address(skill_id_bytes.to_address());
+        let target_id = object::id_from_address(skill_id_bytes);
 
         // Verify the access cap matches the requested skill
         assert!(access_cap.skill_id == target_id, ENoAccess);
@@ -221,12 +220,12 @@ module skill_marketplace::skill_marketplace {
         // Decode and verify skill ID
         let mut prepared = bcs::new(id);
         let skill_id_bytes = prepared.peel_address();
-        let target_id = object::id_from_address(skill_id_bytes.to_address());
+        let target_id = object::id_from_address(skill_id_bytes);
         assert!(object::id(skill) == target_id, ENoAccess);
     }
 
     /// Update the price of a skill. Only the creator can do this.
-    public entry fun update_price(
+    public fun update_price(
         skill: &mut SkillRecord,
         new_price: u64,
         ctx: &mut TxContext,
@@ -255,4 +254,489 @@ module skill_marketplace::skill_marketplace {
 
     public fun get_access_skill_id(cap: &AccessCap): ID { cap.skill_id }
     public fun get_access_blob_id(cap: &AccessCap): u256 { cap.blob_id }
+
+    // ====== Tests ======
+
+    #[test_only]
+    use sui::test_scenario::{Self as ts, Scenario};
+    #[test_only]
+    use sui::clock;
+
+    #[test_only]
+    const CREATOR: address = @0xCAFE;
+    #[test_only]
+    const BUYER: address = @0xBEEF;
+    #[test_only]
+    const OTHER: address = @0xDEAD;
+    #[test_only]
+    const BLOB_ID: u256 = 123456789;
+    #[test_only]
+    const PRICE: u64 = 1_000_000_000;
+
+    #[test_only]
+    fun publish_free(scenario: &mut Scenario) {
+        ts::next_tx(scenario, CREATOR);
+        let clock = clock::create_for_testing(ts::ctx(scenario));
+        publish_skill(BLOB_ID, b"Test", b"Desc", 0, b"sdk", b"testnet", b"0xabc", false, &clock, ts::ctx(scenario));
+        clock::destroy_for_testing(clock);
+    }
+
+    #[test_only]
+    fun publish_paid(scenario: &mut Scenario) {
+        ts::next_tx(scenario, CREATOR);
+        let clock = clock::create_for_testing(ts::ctx(scenario));
+        publish_skill(BLOB_ID, b"Test", b"Desc", PRICE, b"sdk", b"testnet", b"0xabc", true, &clock, ts::ctx(scenario));
+        clock::destroy_for_testing(clock);
+    }
+
+    #[test_only]
+    fun encode_skill_id(skill: &SkillRecord): vector<u8> {
+        std::bcs::to_bytes(&object::id_to_address(&object::id(skill)))
+    }
+
+    // ---- publish_skill ----
+
+    #[test]
+    fun test_publish_free_skill() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_free(&mut scenario);
+
+        ts::next_tx(&mut scenario, CREATOR);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        assert!(skill.price == 0);
+        assert!(skill.blob_id == BLOB_ID);
+        assert!(skill.creator == CREATOR);
+        assert!(skill.is_encrypted == false);
+        assert!(skill.total_sales == 0);
+        assert!(skill.total_revenue == 0);
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    fun test_publish_paid_encrypted_skill() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_paid(&mut scenario);
+
+        ts::next_tx(&mut scenario, CREATOR);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        assert!(skill.price == PRICE);
+        assert!(skill.blob_id == BLOB_ID);
+        assert!(skill.creator == CREATOR);
+        assert!(skill.is_encrypted == true);
+        assert!(skill.total_sales == 0);
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
+
+    // ---- purchase_skill ----
+
+    #[test]
+    fun test_purchase_exact_payment() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_paid(&mut scenario);
+
+        ts::next_tx(&mut scenario, BUYER);
+        let mut skill = ts::take_shared<SkillRecord>(&scenario);
+        let clock = clock::create_for_testing(ts::ctx(&mut scenario));
+        let payment = coin::mint_for_testing<SUI>(PRICE, ts::ctx(&mut scenario));
+        purchase_skill(&mut skill, payment, &clock, ts::ctx(&mut scenario));
+        assert!(skill.total_sales == 1);
+        assert!(skill.total_revenue == PRICE);
+        ts::return_shared(skill);
+        clock::destroy_for_testing(clock);
+
+        // Verify buyer got AccessCap
+        ts::next_tx(&mut scenario, BUYER);
+        let cap = ts::take_from_sender<AccessCap>(&scenario);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        assert!(cap.blob_id == BLOB_ID);
+        assert!(cap.skill_id == object::id(&skill));
+        ts::return_to_sender(&scenario, cap);
+        ts::return_shared(skill);
+
+        // Verify creator got payment
+        ts::next_tx(&mut scenario, CREATOR);
+        let received = ts::take_from_sender<Coin<SUI>>(&scenario);
+        assert!(coin::value(&received) == PRICE);
+        ts::return_to_sender(&scenario, received);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    fun test_purchase_overpayment_returns_change() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_paid(&mut scenario);
+
+        let overpay = PRICE * 3;
+        ts::next_tx(&mut scenario, BUYER);
+        let mut skill = ts::take_shared<SkillRecord>(&scenario);
+        let clock = clock::create_for_testing(ts::ctx(&mut scenario));
+        let payment = coin::mint_for_testing<SUI>(overpay, ts::ctx(&mut scenario));
+        purchase_skill(&mut skill, payment, &clock, ts::ctx(&mut scenario));
+        ts::return_shared(skill);
+        clock::destroy_for_testing(clock);
+
+        // Buyer should get AccessCap + change
+        ts::next_tx(&mut scenario, BUYER);
+        let cap = ts::take_from_sender<AccessCap>(&scenario);
+        let change = ts::take_from_sender<Coin<SUI>>(&scenario);
+        assert!(coin::value(&change) == overpay - PRICE);
+        ts::return_to_sender(&scenario, cap);
+        ts::return_to_sender(&scenario, change);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = EInsufficientPayment)]
+    fun test_purchase_insufficient_payment_aborts() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_paid(&mut scenario);
+
+        ts::next_tx(&mut scenario, BUYER);
+        let mut skill = ts::take_shared<SkillRecord>(&scenario);
+        let clock = clock::create_for_testing(ts::ctx(&mut scenario));
+        let payment = coin::mint_for_testing<SUI>(PRICE / 2, ts::ctx(&mut scenario));
+        purchase_skill(&mut skill, payment, &clock, ts::ctx(&mut scenario));
+        ts::return_shared(skill);
+        clock::destroy_for_testing(clock);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ESkillIsFree)]
+    fun test_purchase_free_skill_aborts() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_free(&mut scenario);
+
+        ts::next_tx(&mut scenario, BUYER);
+        let mut skill = ts::take_shared<SkillRecord>(&scenario);
+        let clock = clock::create_for_testing(ts::ctx(&mut scenario));
+        let payment = coin::mint_for_testing<SUI>(PRICE, ts::ctx(&mut scenario));
+        purchase_skill(&mut skill, payment, &clock, ts::ctx(&mut scenario));
+        ts::return_shared(skill);
+        clock::destroy_for_testing(clock);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    fun test_multiple_purchases_accumulate_stats() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_paid(&mut scenario);
+
+        // First purchase
+        ts::next_tx(&mut scenario, BUYER);
+        let mut skill = ts::take_shared<SkillRecord>(&scenario);
+        let clock = clock::create_for_testing(ts::ctx(&mut scenario));
+        let payment = coin::mint_for_testing<SUI>(PRICE, ts::ctx(&mut scenario));
+        purchase_skill(&mut skill, payment, &clock, ts::ctx(&mut scenario));
+        ts::return_shared(skill);
+        clock::destroy_for_testing(clock);
+
+        // Second purchase by different user
+        ts::next_tx(&mut scenario, OTHER);
+        let mut skill = ts::take_shared<SkillRecord>(&scenario);
+        let clock = clock::create_for_testing(ts::ctx(&mut scenario));
+        let payment = coin::mint_for_testing<SUI>(PRICE, ts::ctx(&mut scenario));
+        purchase_skill(&mut skill, payment, &clock, ts::ctx(&mut scenario));
+        assert!(skill.total_sales == 2);
+        assert!(skill.total_revenue == PRICE * 2);
+        ts::return_shared(skill);
+        clock::destroy_for_testing(clock);
+
+        ts::end(scenario);
+    }
+
+    // ---- claim_free_skill ----
+
+    #[test]
+    fun test_claim_free_skill() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_free(&mut scenario);
+
+        ts::next_tx(&mut scenario, BUYER);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        let clock = clock::create_for_testing(ts::ctx(&mut scenario));
+        claim_free_skill(&skill, &clock, ts::ctx(&mut scenario));
+        ts::return_shared(skill);
+        clock::destroy_for_testing(clock);
+
+        // Verify AccessCap
+        ts::next_tx(&mut scenario, BUYER);
+        let cap = ts::take_from_sender<AccessCap>(&scenario);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        assert!(cap.blob_id == BLOB_ID);
+        assert!(cap.skill_id == object::id(&skill));
+        ts::return_to_sender(&scenario, cap);
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    fun test_multiple_users_claim_free_skill() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_free(&mut scenario);
+
+        ts::next_tx(&mut scenario, BUYER);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        let clock = clock::create_for_testing(ts::ctx(&mut scenario));
+        claim_free_skill(&skill, &clock, ts::ctx(&mut scenario));
+        ts::return_shared(skill);
+        clock::destroy_for_testing(clock);
+
+        ts::next_tx(&mut scenario, OTHER);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        let clock = clock::create_for_testing(ts::ctx(&mut scenario));
+        claim_free_skill(&skill, &clock, ts::ctx(&mut scenario));
+        ts::return_shared(skill);
+        clock::destroy_for_testing(clock);
+
+        // Both should have AccessCap
+        ts::next_tx(&mut scenario, BUYER);
+        let cap = ts::take_from_sender<AccessCap>(&scenario);
+        ts::return_to_sender(&scenario, cap);
+        ts::next_tx(&mut scenario, OTHER);
+        let cap = ts::take_from_sender<AccessCap>(&scenario);
+        ts::return_to_sender(&scenario, cap);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ESkillNotPaid)]
+    fun test_claim_paid_skill_aborts() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_paid(&mut scenario);
+
+        ts::next_tx(&mut scenario, BUYER);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        let clock = clock::create_for_testing(ts::ctx(&mut scenario));
+        claim_free_skill(&skill, &clock, ts::ctx(&mut scenario));
+        ts::return_shared(skill);
+        clock::destroy_for_testing(clock);
+
+        ts::end(scenario);
+    }
+
+    // ---- seal_approve ----
+
+    #[test]
+    fun test_seal_approve_valid_access() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_paid(&mut scenario);
+
+        // Purchase first
+        ts::next_tx(&mut scenario, BUYER);
+        let mut skill = ts::take_shared<SkillRecord>(&scenario);
+        let clock = clock::create_for_testing(ts::ctx(&mut scenario));
+        let payment = coin::mint_for_testing<SUI>(PRICE, ts::ctx(&mut scenario));
+        purchase_skill(&mut skill, payment, &clock, ts::ctx(&mut scenario));
+        ts::return_shared(skill);
+        clock::destroy_for_testing(clock);
+
+        // seal_approve should succeed
+        ts::next_tx(&mut scenario, BUYER);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        let cap = ts::take_from_sender<AccessCap>(&scenario);
+        let id_bytes = encode_skill_id(&skill);
+        seal_approve(id_bytes, &skill, &cap);
+        ts::return_to_sender(&scenario, cap);
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ENoAccess)]
+    fun test_seal_approve_wrong_id_aborts() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_paid(&mut scenario);
+
+        ts::next_tx(&mut scenario, BUYER);
+        let mut skill = ts::take_shared<SkillRecord>(&scenario);
+        let clock = clock::create_for_testing(ts::ctx(&mut scenario));
+        let payment = coin::mint_for_testing<SUI>(PRICE, ts::ctx(&mut scenario));
+        purchase_skill(&mut skill, payment, &clock, ts::ctx(&mut scenario));
+        ts::return_shared(skill);
+        clock::destroy_for_testing(clock);
+
+        // seal_approve with wrong ID
+        ts::next_tx(&mut scenario, BUYER);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        let cap = ts::take_from_sender<AccessCap>(&scenario);
+        let wrong_id = std::bcs::to_bytes(&@0x0);
+        seal_approve(wrong_id, &skill, &cap);
+        ts::return_to_sender(&scenario, cap);
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
+
+    // ---- seal_approve_free ----
+
+    #[test]
+    fun test_seal_approve_free_valid() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_free(&mut scenario);
+
+        ts::next_tx(&mut scenario, BUYER);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        let id_bytes = encode_skill_id(&skill);
+        seal_approve_free(id_bytes, &skill);
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ESkillNotPaid)]
+    fun test_seal_approve_free_on_paid_skill_aborts() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_paid(&mut scenario);
+
+        ts::next_tx(&mut scenario, BUYER);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        let id_bytes = encode_skill_id(&skill);
+        seal_approve_free(id_bytes, &skill);
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ENoAccess)]
+    fun test_seal_approve_free_wrong_id_aborts() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_free(&mut scenario);
+
+        ts::next_tx(&mut scenario, BUYER);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        let wrong_id = std::bcs::to_bytes(&@0x0);
+        seal_approve_free(wrong_id, &skill);
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
+
+    // ---- update_price ----
+
+    #[test]
+    fun test_update_price_by_creator() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_paid(&mut scenario);
+
+        ts::next_tx(&mut scenario, CREATOR);
+        let mut skill = ts::take_shared<SkillRecord>(&scenario);
+        assert!(skill.price == PRICE);
+        update_price(&mut skill, 2_000_000_000, ts::ctx(&mut scenario));
+        assert!(skill.price == 2_000_000_000);
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    fun test_update_price_to_zero_makes_free() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_paid(&mut scenario);
+
+        ts::next_tx(&mut scenario, CREATOR);
+        let mut skill = ts::take_shared<SkillRecord>(&scenario);
+        assert!(skill.price > 0);
+        update_price(&mut skill, 0, ts::ctx(&mut scenario));
+        assert!(skill.price == 0);
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ENotCreator)]
+    fun test_update_price_by_non_creator_aborts() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_paid(&mut scenario);
+
+        ts::next_tx(&mut scenario, OTHER);
+        let mut skill = ts::take_shared<SkillRecord>(&scenario);
+        update_price(&mut skill, 0, ts::ctx(&mut scenario));
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ENotCreator)]
+    fun test_buyer_cannot_update_price() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_paid(&mut scenario);
+
+        ts::next_tx(&mut scenario, BUYER);
+        let mut skill = ts::take_shared<SkillRecord>(&scenario);
+        update_price(&mut skill, 500_000_000, ts::ctx(&mut scenario));
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
+
+    // ---- End-to-end flows ----
+
+    #[test]
+    fun test_full_paid_flow() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_paid(&mut scenario);
+
+        // Purchase
+        ts::next_tx(&mut scenario, BUYER);
+        let mut skill = ts::take_shared<SkillRecord>(&scenario);
+        let clock = clock::create_for_testing(ts::ctx(&mut scenario));
+        let payment = coin::mint_for_testing<SUI>(PRICE, ts::ctx(&mut scenario));
+        purchase_skill(&mut skill, payment, &clock, ts::ctx(&mut scenario));
+        ts::return_shared(skill);
+        clock::destroy_for_testing(clock);
+
+        // Seal approve
+        ts::next_tx(&mut scenario, BUYER);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        let cap = ts::take_from_sender<AccessCap>(&scenario);
+        let id_bytes = encode_skill_id(&skill);
+        seal_approve(id_bytes, &skill, &cap);
+        assert!(cap.skill_id == object::id(&skill));
+        assert!(cap.blob_id == skill.blob_id);
+        assert!(skill.total_sales == 1);
+        assert!(skill.total_revenue == PRICE);
+        ts::return_to_sender(&scenario, cap);
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    fun test_full_free_flow() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_free(&mut scenario);
+
+        // Claim
+        ts::next_tx(&mut scenario, BUYER);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        let clock = clock::create_for_testing(ts::ctx(&mut scenario));
+        claim_free_skill(&skill, &clock, ts::ctx(&mut scenario));
+        ts::return_shared(skill);
+        clock::destroy_for_testing(clock);
+
+        // Seal approve free
+        ts::next_tx(&mut scenario, BUYER);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        let id_bytes = encode_skill_id(&skill);
+        seal_approve_free(id_bytes, &skill);
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
 }
