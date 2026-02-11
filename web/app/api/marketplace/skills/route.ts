@@ -18,6 +18,7 @@ export async function GET(request: Request) {
       scene: searchParams.get('scene') || undefined,
       network: searchParams.get('network') || undefined,
       search: searchParams.get('search') || undefined,
+      pricing: (searchParams.get('pricing') as 'all' | 'free' | 'paid') || undefined,
       page: parseInt(searchParams.get('page') || '1'),
       limit: parseInt(searchParams.get('limit') || '20'),
     };
@@ -55,31 +56,44 @@ export async function POST(request: Request) {
     const body = await request.json() as {
       githubUrl?: string; title?: string; description?: string;
       scene?: string; network?: string; packageId?: string;
+      // Walrus + Seal fields
+      blobId?: string; onChainId?: string; priceMist?: number;
+      creatorAddress?: string; isEncrypted?: boolean;
     };
-    const { githubUrl, title, description, scene, network, packageId } = body;
+    const { githubUrl, title, description, scene, network, packageId,
+      blobId, onChainId, priceMist, creatorAddress, isEncrypted } = body;
 
-    if (!githubUrl) {
-      return NextResponse.json({ error: 'GitHub URL is required' }, { status: 400 });
+    // Support both GitHub URL and Walrus blob submissions
+    const isWalrusSubmission = !!blobId && !!onChainId;
+
+    if (!isWalrusSubmission && !githubUrl) {
+      return NextResponse.json({ error: 'GitHub URL or Walrus blob ID is required' }, { status: 400 });
     }
 
-    // Validate GitHub URL format
-    const urlPattern = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/blob\/([\w.-]+)\/(.+\.md)$/;
-    const match = githubUrl.match(urlPattern);
-    if (!match) {
-      return NextResponse.json({ error: 'Invalid GitHub URL format' }, { status: 400 });
-    }
+    let repoOwner = 'walrus';
+    let repoName = 'on-chain';
+    let filePath = 'SKILL.md';
+    const effectiveGithubUrl = githubUrl || `walrus://${blobId}`;
 
-    const [, repoOwner, repoName, , filePath] = match;
+    if (githubUrl) {
+      // Validate GitHub URL format
+      const urlPattern = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/blob\/([\w.-]+)\/(.+\.md)$/;
+      const match = githubUrl.match(urlPattern);
+      if (!match) {
+        return NextResponse.json({ error: 'Invalid GitHub URL format' }, { status: 400 });
+      }
+      [, repoOwner, repoName, , filePath] = match;
+    }
 
     // Check for duplicates
-    const isDuplicate = await checkDuplicateUrl(DB, githubUrl);
+    const isDuplicate = await checkDuplicateUrl(DB, effectiveGithubUrl);
     if (isDuplicate) {
-      return NextResponse.json({ error: 'This skill URL has already been submitted' }, { status: 409 });
+      return NextResponse.json({ error: 'This skill has already been submitted' }, { status: 409 });
     }
 
     // Create skill in D1
     const skill = await createSkill(DB, {
-      githubUrl,
+      githubUrl: effectiveGithubUrl,
       ownerId: payload.sub,
       title: title || `${repoName} Skill`,
       description: description || `Claude skill for ${repoName}`,
@@ -89,6 +103,11 @@ export async function POST(request: Request) {
       repoOwner,
       repoName,
       filePath,
+      blobId: blobId || null,
+      onChainId: onChainId || null,
+      priceMist: priceMist || 0,
+      creatorAddress: creatorAddress || null,
+      isEncrypted: isEncrypted || false,
     });
 
     return NextResponse.json({ success: true, skill }, { status: 201 });

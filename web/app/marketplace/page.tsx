@@ -1,7 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth/context';
+import { mistToSui } from '@/lib/contracts/skill-marketplace';
+
+interface UserSkillItem {
+  id: string;
+  title: string;
+  packageId: string;
+  moduleName: string | null;
+  network: string;
+  scene: string;
+  createdAt: number;
+  updatedAt: number;
+}
 
 interface Skill {
   id: string;
@@ -17,6 +30,12 @@ interface Skill {
   repoName: string;
   createdAt: number;
   isFromAwesome: boolean;
+  // Walrus + Seal fields
+  blobId: string | null;
+  onChainId: string | null;
+  priceMist: number;
+  creatorAddress: string | null;
+  isEncrypted: boolean;
 }
 
 const SCENES = [
@@ -37,7 +56,13 @@ const NETWORKS = [
   { value: 'devnet', label: 'Devnet' },
 ];
 
-// Mock data for now - will be replaced with API call
+const PRICING = [
+  { value: '', label: 'All Prices' },
+  { value: 'free', label: 'Free Only' },
+  { value: 'paid', label: 'Paid Only' },
+];
+
+// Mock data - will be replaced with API call
 const MOCK_SKILLS: Skill[] = [
   {
     id: '1',
@@ -53,6 +78,11 @@ const MOCK_SKILLS: Skill[] = [
     repoName: 'cetus-skill',
     createdAt: Date.now() - 7 * 24 * 60 * 60 * 1000,
     isFromAwesome: true,
+    blobId: null,
+    onChainId: null,
+    priceMist: 0,
+    creatorAddress: null,
+    isEncrypted: false,
   },
   {
     id: '2',
@@ -68,6 +98,11 @@ const MOCK_SKILLS: Skill[] = [
     repoName: 'deepbook-bot',
     createdAt: Date.now() - 14 * 24 * 60 * 60 * 1000,
     isFromAwesome: true,
+    blobId: 'blob-example-2',
+    onChainId: '0xabc123',
+    priceMist: 500000000, // 0.5 SUI
+    creatorAddress: '0xdef456',
+    isEncrypted: true,
   },
   {
     id: '3',
@@ -83,17 +118,74 @@ const MOCK_SKILLS: Skill[] = [
     repoName: 'scallop-audit',
     createdAt: Date.now() - 3 * 24 * 60 * 60 * 1000,
     isFromAwesome: false,
+    blobId: null,
+    onChainId: null,
+    priceMist: 0,
+    creatorAddress: null,
+    isEncrypted: false,
   },
 ];
 
 export default function MarketplacePage() {
+  const { user } = useAuth();
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     scene: '',
     network: '',
     search: '',
+    pricing: '',
   });
+
+  // User saved skills
+  const [userSkills, setUserSkills] = useState<UserSkillItem[]>([]);
+  const [loadingUserSkills, setLoadingUserSkills] = useState(false);
+  const [showMySkills, setShowMySkills] = useState(true);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [publishedIds, setPublishedIds] = useState<Set<string>>(new Set());
+  const [publishError, setPublishError] = useState<string | null>(null);
+
+  // Fetch user saved skills
+  const fetchUserSkills = useCallback(async () => {
+    if (!user) { setUserSkills([]); return; }
+    setLoadingUserSkills(true);
+    try {
+      const res = await fetch('/api/user/skills');
+      if (res.ok) {
+        const data = await res.json() as { skills: UserSkillItem[] };
+        setUserSkills(data.skills || []);
+      }
+    } catch { /* ignore */ } finally {
+      setLoadingUserSkills(false);
+    }
+  }, [user]);
+
+  useEffect(() => { fetchUserSkills(); }, [fetchUserSkills]);
+
+  // Publish a saved skill to marketplace
+  const handlePublish = async (skillId: string) => {
+    setPublishingId(skillId);
+    setPublishError(null);
+    try {
+      const res = await fetch('/api/marketplace/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userSkillId: skillId }),
+      });
+      if (res.ok) {
+        setPublishedIds(prev => new Set(prev).add(skillId));
+        // Refresh marketplace skills
+        setFilters(f => ({ ...f }));
+      } else {
+        const data = await res.json() as { error?: string };
+        setPublishError(data.error || 'Publish failed');
+      }
+    } catch {
+      setPublishError('Publish failed');
+    } finally {
+      setPublishingId(null);
+    }
+  };
 
   useEffect(() => {
     const fetchSkills = async () => {
@@ -103,41 +195,36 @@ export default function MarketplacePage() {
         if (filters.scene) params.set('scene', filters.scene);
         if (filters.network) params.set('network', filters.network);
         if (filters.search) params.set('search', filters.search);
+        if (filters.pricing) params.set('pricing', filters.pricing);
 
         const response = await fetch(`/api/marketplace/skills?${params.toString()}`);
         if (response.ok) {
           const data = await response.json() as { skills?: Skill[] };
           setSkills(data.skills || []);
         } else {
-          // Fallback to mock data if API fails
-          let filtered = [...MOCK_SKILLS];
-          if (filters.scene) filtered = filtered.filter(s => s.scene === filters.scene);
-          if (filters.network) filtered = filtered.filter(s => s.network === filters.network);
-          if (filters.search) {
-            const search = filters.search.toLowerCase();
-            filtered = filtered.filter(s =>
-              s.title.toLowerCase().includes(search) ||
-              s.description.toLowerCase().includes(search)
-            );
-          }
-          setSkills(filtered);
+          applyMockFallback();
         }
       } catch {
-        // Fallback to mock data on error
-        let filtered = [...MOCK_SKILLS];
-        if (filters.scene) filtered = filtered.filter(s => s.scene === filters.scene);
-        if (filters.network) filtered = filtered.filter(s => s.network === filters.network);
-        if (filters.search) {
-          const search = filters.search.toLowerCase();
-          filtered = filtered.filter(s =>
-            s.title.toLowerCase().includes(search) ||
-            s.description.toLowerCase().includes(search)
-          );
-        }
-        setSkills(filtered);
+        applyMockFallback();
       } finally {
         setLoading(false);
       }
+    };
+
+    const applyMockFallback = () => {
+      let filtered = [...MOCK_SKILLS];
+      if (filters.scene) filtered = filtered.filter(s => s.scene === filters.scene);
+      if (filters.network) filtered = filtered.filter(s => s.network === filters.network);
+      if (filters.pricing === 'free') filtered = filtered.filter(s => !s.priceMist);
+      if (filters.pricing === 'paid') filtered = filtered.filter(s => s.priceMist > 0);
+      if (filters.search) {
+        const search = filters.search.toLowerCase();
+        filtered = filtered.filter(s =>
+          s.title.toLowerCase().includes(search) ||
+          s.description.toLowerCase().includes(search)
+        );
+      }
+      setSkills(filtered);
     };
 
     fetchSkills();
@@ -152,14 +239,14 @@ export default function MarketplacePage() {
             <div>
               <h1 className="text-2xl font-bold font-mono-cyber neon-text tracking-wide uppercase">Skill Marketplace</h1>
               <p className="text-muted-foreground mt-1 font-mono-cyber text-sm">
-                Discover and share Claude skills for Sui Move contracts
+                Discover and share Claude skills for Sui Move contracts &middot; Powered by Walrus + Seal
               </p>
             </div>
             <Link
               href="/marketplace/submit"
               className="cyber-btn px-5 py-2.5 rounded font-mono-cyber text-sm"
             >
-              Submit Skill
+              Publish Skill
             </Link>
           </div>
         </div>
@@ -193,7 +280,71 @@ export default function MarketplacePage() {
               <option key={n.value} value={n.value}>{n.label}</option>
             ))}
           </select>
+          <select
+            value={filters.pricing}
+            onChange={(e) => setFilters(f => ({ ...f, pricing: e.target.value }))}
+            className="cyber-input px-4 py-2.5 rounded font-mono-cyber text-sm"
+          >
+            {PRICING.map(p => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+          </select>
         </div>
+
+        {/* My Saved Skills */}
+        {user && (userSkills.length > 0 || loadingUserSkills) && (
+          <div className="glass-panel rounded mb-8 overflow-hidden hud-corners">
+            <button
+              onClick={() => setShowMySkills(!showMySkills)}
+              className="w-full flex items-center justify-between px-6 py-4 hover:bg-[rgba(var(--neon-cyan-rgb),0.02)] transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <svg className="w-5 h-5 text-[var(--neon-purple)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                </svg>
+                <span className="font-mono-cyber text-sm tracking-wide text-[var(--neon-purple)]">My Saved Skills</span>
+                <span className="text-xs font-mono-cyber text-muted-foreground px-2 py-0.5 rounded-full bg-[rgba(var(--neon-purple-rgb),0.08)] border border-[rgba(var(--neon-purple-rgb),0.15)]">
+                  {userSkills.length}
+                </span>
+              </div>
+              <svg className={`w-4 h-4 text-muted-foreground transition-transform ${showMySkills ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {showMySkills && (
+              <div className="border-t border-[rgba(var(--neon-cyan-rgb),0.06)] px-6 py-4">
+                {publishError && (
+                  <div className="mb-4 px-4 py-2 rounded bg-[rgba(var(--neon-red-rgb),0.08)] border border-[rgba(var(--neon-red-rgb),0.2)] text-[var(--neon-red)] text-xs font-mono-cyber">
+                    {publishError}
+                  </div>
+                )}
+                {loadingUserSkills ? (
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {[1, 2].map(i => (
+                      <div key={i} className="glass-panel rounded p-4 animate-pulse">
+                        <div className="h-5 bg-[rgba(var(--neon-purple-rgb),0.06)] rounded w-3/4 mb-3"></div>
+                        <div className="h-4 bg-[rgba(var(--neon-purple-rgb),0.04)] rounded w-1/2"></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {userSkills.map(skill => (
+                      <UserSkillCard
+                        key={skill.id}
+                        skill={skill}
+                        publishing={publishingId === skill.id}
+                        published={publishedIds.has(skill.id)}
+                        onPublish={() => handlePublish(skill.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Skills Grid */}
         {loading ? (
@@ -239,18 +390,33 @@ const SCENE_COLORS: Record<string, string> = {
 };
 
 function SkillCard({ skill }: { skill: Skill }) {
+  const isFree = !skill.priceMist || skill.priceMist === 0;
+  const isOnChain = !!skill.blobId;
+
   return (
     <Link href={`/marketplace/${skill.id}`}>
       <div className="glass-panel rounded p-6 h-full hover:border-[rgba(var(--neon-cyan-rgb),0.25)] transition-all cursor-pointer group hud-corners">
         <div className="flex items-start justify-between mb-3">
-          <h3 className="font-mono-cyber text-sm uppercase tracking-wider group-hover:text-[var(--neon-cyan)] transition-colors">
+          <h3 className="font-mono-cyber text-sm uppercase tracking-wider group-hover:text-[var(--neon-cyan)] transition-colors flex-1 mr-2">
             {skill.title}
           </h3>
-          {skill.isFromAwesome && (
-            <span className="px-2 py-0.5 rounded text-[10px] font-mono-cyber bg-[rgba(var(--neon-amber-rgb),0.12)] text-[var(--neon-amber)] border border-[rgba(var(--neon-amber-rgb),0.25)]">
-              Featured
-            </span>
-          )}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {skill.isFromAwesome && (
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono-cyber bg-[rgba(var(--neon-amber-rgb),0.12)] text-[var(--neon-amber)] border border-[rgba(var(--neon-amber-rgb),0.25)]">
+                Featured
+              </span>
+            )}
+            {/* Price badge */}
+            {isFree ? (
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono-cyber bg-[rgba(var(--neon-green-rgb),0.1)] text-[var(--neon-green)] border border-[rgba(var(--neon-green-rgb),0.25)]">
+                Free
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono-cyber bg-[rgba(var(--neon-magenta-rgb),0.1)] text-[var(--neon-magenta)] border border-[rgba(var(--neon-magenta-rgb),0.25)]">
+                {mistToSui(BigInt(skill.priceMist))}
+              </span>
+            )}
+          </div>
         </div>
 
         <p className="text-sm text-muted-foreground mb-4 line-clamp-2 font-mono-cyber">
@@ -264,6 +430,11 @@ function SkillCard({ skill }: { skill: Skill }) {
           <span className="px-2 py-1 rounded text-xs font-mono-cyber uppercase tracking-wider bg-[rgba(var(--neon-cyan-rgb),0.05)] text-[rgba(var(--neon-cyan-rgb),0.5)] border border-[rgba(var(--neon-cyan-rgb),0.1)]">
             {skill.network}
           </span>
+          {isOnChain && (
+            <span className="px-2 py-1 rounded text-xs font-mono-cyber uppercase tracking-wider bg-[rgba(var(--neon-purple-rgb),0.05)] text-[rgba(var(--neon-purple-rgb),0.5)] border border-[rgba(var(--neon-purple-rgb),0.1)]">
+              on-chain
+            </span>
+          )}
         </div>
 
         <div className="flex items-center justify-between text-sm text-muted-foreground font-mono-cyber">
@@ -281,11 +452,80 @@ function SkillCard({ skill }: { skill: Skill }) {
               {skill.downloadsCount}
             </span>
           </div>
-          <span className="font-mono-cyber text-xs text-[rgba(var(--neon-cyan-rgb),0.35)]">
-            {skill.repoOwner}/{skill.repoName}
-          </span>
+          {skill.repoOwner === 'direct' ? (
+            <span className="font-mono-cyber text-xs text-[rgba(var(--neon-purple-rgb),0.5)]">
+              Direct Upload
+            </span>
+          ) : skill.creatorAddress ? (
+            <span className="font-mono-cyber text-xs text-[rgba(var(--neon-cyan-rgb),0.35)]">
+              {skill.creatorAddress.slice(0, 6)}...{skill.creatorAddress.slice(-4)}
+            </span>
+          ) : (
+            <span className="font-mono-cyber text-xs text-[rgba(var(--neon-cyan-rgb),0.35)]">
+              {skill.repoOwner}/{skill.repoName}
+            </span>
+          )}
         </div>
       </div>
     </Link>
+  );
+}
+
+function UserSkillCard({ skill, publishing, published, onPublish }: {
+  skill: UserSkillItem;
+  publishing: boolean;
+  published: boolean;
+  onPublish: () => void;
+}) {
+  return (
+    <div className="glass-panel rounded p-4 border border-[rgba(var(--neon-purple-rgb),0.15)] hover:border-[rgba(var(--neon-purple-rgb),0.3)] transition-all hud-corners">
+      <h3 className="font-mono-cyber text-sm truncate mb-2" title={skill.title}>
+        {skill.title}
+      </h3>
+
+      <div className="flex flex-wrap gap-2 mb-3">
+        <span className={`px-2 py-0.5 rounded text-[10px] font-mono-cyber uppercase tracking-wider ${SCENE_COLORS[skill.scene] || 'bg-[rgba(var(--neon-cyan-rgb),0.05)] text-[rgba(var(--neon-cyan-rgb),0.5)]'}`}>
+          {skill.scene}
+        </span>
+        <span className="px-2 py-0.5 rounded text-[10px] font-mono-cyber uppercase tracking-wider bg-[rgba(var(--neon-cyan-rgb),0.05)] text-[rgba(var(--neon-cyan-rgb),0.5)] border border-[rgba(var(--neon-cyan-rgb),0.1)]">
+          {skill.network}
+        </span>
+      </div>
+
+      {skill.packageId && (
+        <p className="text-[10px] text-muted-foreground font-mono truncate mb-3" title={skill.packageId}>
+          {skill.packageId.slice(0, 10)}...{skill.packageId.slice(-6)}
+        </p>
+      )}
+
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-muted-foreground font-mono-cyber">
+          {new Date(skill.createdAt).toLocaleDateString()}
+        </span>
+        {published ? (
+          <span className="px-3 py-1.5 rounded text-xs font-mono-cyber bg-[rgba(var(--neon-green-rgb),0.08)] text-[var(--neon-green)] border border-[rgba(var(--neon-green-rgb),0.2)]">
+            Published
+          </span>
+        ) : (
+          <button
+            onClick={(e) => { e.preventDefault(); onPublish(); }}
+            disabled={publishing}
+            className="cyber-btn px-3 py-1.5 rounded text-xs font-mono-cyber disabled:opacity-50"
+          >
+            {publishing ? (
+              <span className="flex items-center gap-1.5">
+                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Publishing...
+              </span>
+            ) : (
+              'Publish'
+            )}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

@@ -97,6 +97,24 @@ const translations: Record<string, { en: string; zh: string }> = {
   'scene.bot': { en: 'Trading Bot', zh: '交易机器人' },
   'scene.docs': { en: 'Documentation', zh: '文档生成' },
   'scene.custom': { en: 'Custom Scene', zh: '自定义场景' },
+
+  // Scene descriptions
+  'scene.sdk.desc': { en: 'Function signatures, code examples, PTB patterns', zh: '函数签名、代码示例、PTB 模式' },
+  'scene.learn.desc': { en: 'Architecture, concepts, state transitions', zh: '架构原理、核心概念、状态转换' },
+  'scene.audit.desc': { en: 'Permission model, asset flows, risk analysis', zh: '权限模型、资产流向、风险分析' },
+  'scene.frontend.desc': { en: 'User flows, data queries, event handling', zh: '用户交互流程、数据查询、事件处理' },
+  'scene.bot.desc': { en: 'Entry functions, gas optimization, monitoring', zh: '入口函数、Gas 优化、监控策略' },
+  'scene.docs.desc': { en: 'API reference, terminology, FAQ', zh: 'API 参考文档、术语定义、常见问题' },
+  'scene.custom.desc': { en: 'Define your own focus areas', zh: '自定义你的关注领域' },
+
+  // Scene use-case hints
+  'scene.sdk.hint': { en: 'Best for: building dApps & integrations', zh: '适用于：构建 dApp 与集成开发' },
+  'scene.learn.hint': { en: 'Best for: understanding protocol design', zh: '适用于：理解协议设计原理' },
+  'scene.audit.hint': { en: 'Best for: security review & risk assessment', zh: '适用于：安全审查与风险评估' },
+  'scene.frontend.hint': { en: 'Best for: UI development & user interaction', zh: '适用于：前端界面开发与用户交互' },
+  'scene.bot.hint': { en: 'Best for: automated trading & MEV', zh: '适用于：自动化交易与 MEV 策略' },
+  'scene.docs.hint': { en: 'Best for: generating API docs & guides', zh: '适用于：生成 API 文档与使用指南' },
+  'scene.custom.hint': { en: 'Best for: specific needs not covered above', zh: '适用于：以上场景未覆盖的特定需求' },
 };
 
 export function useTranslation() {

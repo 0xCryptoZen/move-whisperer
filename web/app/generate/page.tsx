@@ -874,11 +874,11 @@ function GeneratePageContent() {
           <div className="w-10 h-10 rounded border border-[rgba(var(--neon-cyan-rgb),0.3)] bg-[rgba(var(--neon-cyan-rgb),0.1)] flex items-center justify-center neon-text font-mono-cyber font-bold">2</div>
           <div>
             <h2 className="text-lg font-semibold font-mono-cyber tracking-wide">Select Scene</h2>
-            <p className="text-xs text-muted-foreground font-mono-cyber">Choose the focus for your skill document</p>
+            <p className="text-xs text-muted-foreground font-mono-cyber">Different scenes generate different skill documents — pick the one that matches your goal</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-4 sm:grid-cols-7 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {(Object.entries(SCENES) as [SkillScene, typeof CUSTOM_SCENE_CONFIG][]).map(([id, config]) => {
             const colors = SCENE_NEON_COLORS[config.color] || SCENE_NEON_COLORS.cyan;
             return (
@@ -886,14 +886,20 @@ function GeneratePageContent() {
                 key={id}
                 onClick={() => setScene(id)}
                 disabled={isWorking}
-                className={`relative p-4 rounded text-center transition-all duration-200 ${
+                className={`relative p-4 rounded text-left transition-all duration-200 ${
                   scene === id
-                    ? `${colors.bg} border-2 ${colors.border} ${colors.glow} scale-105`
+                    ? `${colors.bg} border-2 ${colors.border} ${colors.glow}`
                     : 'bg-[rgba(var(--neon-cyan-rgb),0.03)] border border-[rgba(var(--neon-cyan-rgb),0.1)] hover:border-[rgba(var(--neon-cyan-rgb),0.25)] hover:bg-[rgba(var(--neon-cyan-rgb),0.05)]'
                 } ${id === 'custom' ? 'border-dashed' : ''} disabled:opacity-50`}
               >
-                <span className={`text-2xl font-mono-cyber font-bold ${scene === id ? colors.text : 'text-muted-foreground'}`}>{config.icon}</span>
-                <div className={`mt-2 text-xs font-mono-cyber uppercase tracking-wider ${scene === id ? colors.text : ''}`}>{t(`scene.${id}`).split(' ')[0]}</div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-xl font-mono-cyber font-bold w-8 text-center ${scene === id ? colors.text : 'text-muted-foreground'}`}>{config.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-sm font-mono-cyber font-semibold tracking-wide ${scene === id ? colors.text : ''}`}>{t(`scene.${id}`)}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5 font-mono-cyber">{t(`scene.${id}.desc`)}</div>
+                  </div>
+                </div>
+                <div className={`text-[10px] mt-2 ml-11 font-mono-cyber ${scene === id ? colors.text + ' opacity-80' : 'text-muted-foreground/60'}`}>{t(`scene.${id}.hint`)}</div>
               </button>
             );
           })}
