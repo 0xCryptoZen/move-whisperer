@@ -139,4 +139,4 @@ npx wrangler pages deploy .vercel/output/static --project-name=move-whisperer
 
 ## License
 
-MIT
+[MIT](LICENSE)
