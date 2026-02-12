@@ -5,7 +5,7 @@
  * Security: Supports API key authentication via X-API-Key header
  */
 
-const DEFAULT_SERVER_URL = 'http://127.0.0.1:3456';
+const DEFAULT_SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://127.0.0.1:3456';
 
 export interface LocalServerConfig {
   baseUrl?: string;

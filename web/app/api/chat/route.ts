@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
   if (!apiKey) {
     return Response.json(
       {
-        error: 'No API key. Configure it in Settings (gear icon) or start local server (pnpm run serve).',
+        error: 'No API key. Configure it in Settings (gear icon) or start the server (pnpm run serve).',
       },
       { status: 503 }
     );

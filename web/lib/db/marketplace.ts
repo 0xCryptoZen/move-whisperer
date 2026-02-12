@@ -300,6 +300,19 @@ export async function getCreatorEarnings(db: D1Database, creatorAddress: string)
   };
 }
 
+export async function isStarred(db: D1Database, userId: string, skillId: string): Promise<boolean> {
+  const row = await db.prepare(
+    'SELECT id FROM stars WHERE user_id = ? AND skill_id = ?'
+  ).bind(userId, skillId).first();
+  return !!row;
+}
+
+export async function incrementDownloads(db: D1Database, skillId: string): Promise<void> {
+  await db.prepare(
+    'UPDATE skills SET downloads_count = downloads_count + 1 WHERE id = ?'
+  ).bind(skillId).run();
+}
+
 export async function toggleStar(db: D1Database, userId: string, skillId: string): Promise<boolean> {
   const existing = await db.prepare(
     'SELECT id FROM stars WHERE user_id = ? AND skill_id = ?'

@@ -98,6 +98,7 @@ export function useLocalServer(
   const { baseUrl, autoConnect = true } = options;
 
   const clientRef = useRef<LocalServerClient | null>(null);
+  const resolvedUrlRef = useRef<string | null>(null);
 
   // Connection state
   const [isConnected, setIsConnected] = useState(false);
@@ -116,9 +117,25 @@ export function useLocalServer(
   const [isComparingVersions, setIsComparingVersions] = useState(false);
   const [isAnalyzingChanges, setIsAnalyzingChanges] = useState(false);
 
-  // Initialize client
+  // Initialize client — resolve URL from ServerConfig (localStorage) or props
   useEffect(() => {
-    clientRef.current = getLocalServerClient(baseUrl);
+    let url = baseUrl;
+    if (!url && typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('move-whisperer-server-config');
+        if (saved) {
+          const cfg = JSON.parse(saved) as { mode?: string; localUrl?: string; remoteUrl?: string };
+          if (cfg.mode === 'local') {
+            url = cfg.localUrl || 'http://localhost:3456';
+          } else if (cfg.mode === 'remote') {
+            url = cfg.remoteUrl || process.env.NEXT_PUBLIC_SERVER_URL || undefined;
+          }
+          // 'auto' mode: resolved during connect()
+        }
+      } catch { /* ignore */ }
+    }
+    resolvedUrlRef.current = url || null;
+    clientRef.current = getLocalServerClient(url);
   }, [baseUrl]);
 
   // Check health (HTTP fallback for manual use)
@@ -135,6 +152,7 @@ export function useLocalServer(
   }, []);
 
   // Connect via WebSocket (primary method)
+  // In auto mode: try local first, fall back to public server
   const connect = useCallback(async () => {
     if (!clientRef.current) return;
     setIsConnecting(true);
@@ -142,7 +160,6 @@ export function useLocalServer(
 
     try {
       await clientRef.current.ensureWebSocket();
-      // Health data will arrive via WebSocket push, but mark as connected
       setIsConnected(true);
     } catch {
       // WebSocket failed, try HTTP fallback
@@ -151,6 +168,25 @@ export function useLocalServer(
         setHealth(healthResult);
         setIsConnected(healthResult.status !== 'offline');
         if (healthResult.status === 'offline') {
+          // Auto mode: if local failed and we have a public server URL, try that
+          const publicUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+          const currentUrl = resolvedUrlRef.current;
+          if (publicUrl && (!currentUrl || currentUrl.includes('localhost') || currentUrl.includes('127.0.0.1'))) {
+            try {
+              const fallbackClient = getLocalServerClient(publicUrl);
+              const fallbackHealth = await fallbackClient.checkHealth();
+              if (fallbackHealth.status !== 'offline') {
+                clientRef.current = fallbackClient;
+                resolvedUrlRef.current = publicUrl;
+                setHealth(fallbackHealth);
+                setIsConnected(true);
+                setError(null);
+                // Try WebSocket on public server
+                try { await fallbackClient.ensureWebSocket(); } catch { /* HTTP-only is fine */ }
+                return;
+              }
+            } catch { /* public server also unavailable */ }
+          }
           setError('Server offline');
         }
       } catch {

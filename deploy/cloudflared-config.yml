@@ -1,0 +1,21 @@
+# Cloudflare Tunnel config for MoveWhisperer
+# Copy to ~/.cloudflared/config.yml after creating tunnel
+#
+# Setup:
+#   cloudflared tunnel login
+#   cloudflared tunnel create movewhisperer
+#   cp deploy/cloudflared-config.yml ~/.cloudflared/config.yml
+#   # Edit tunnel ID and credentials-file path below
+#   cloudflared tunnel route dns movewhisperer api.dolphinslab.cc
+#   cloudflared tunnel run movewhisperer
+
+tunnel: TUNNEL_ID_HERE
+credentials-file: /home/bond/.cloudflared/TUNNEL_ID_HERE.json
+
+ingress:
+  - hostname: api.dolphinslab.cc
+    service: http://localhost:3456
+    originRequest:
+      connectTimeout: 30s
+      noTLSVerify: true
+  - service: http_status:404

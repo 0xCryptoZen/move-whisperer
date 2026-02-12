@@ -24,7 +24,7 @@ export function LocalServerStatus() {
           {isConnecting
             ? 'Connecting...'
             : isConnected
-              ? 'Local Server'
+              ? 'Server'
               : 'Offline'}
         </span>
       </div>
@@ -95,7 +95,7 @@ export function RequireLocalServer({
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-muted-foreground">Connecting to local server...</p>
+        <p className="text-muted-foreground">Connecting to server...</p>
       </div>
     );
   }
@@ -120,9 +120,9 @@ export function RequireLocalServer({
             />
           </svg>
         </div>
-        <h3 className="text-lg font-semibold mb-2">Local Server Required</h3>
+        <h3 className="text-lg font-semibold mb-2">Server Required</h3>
         <p className="text-muted-foreground mb-4 max-w-md">
-          This feature requires the local server to be running. Start the server
+          This feature requires the server to be running. Start your own server
           with:
         </p>
         <code className="px-4 py-2 rounded-lg bg-black/50 text-green-400 font-mono text-sm mb-4">

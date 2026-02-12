@@ -1,0 +1,19 @@
+[Unit]
+Description=Cloudflare Tunnel for MoveWhisperer
+After=network.target movewhisperer.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bond
+Group=bond
+ExecStart=/usr/local/bin/cloudflared tunnel run movewhisperer
+Restart=always
+RestartSec=10s
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cloudflared-movewhisperer
+
+[Install]
+WantedBy=multi-user.target

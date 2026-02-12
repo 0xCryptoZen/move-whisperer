@@ -3,6 +3,11 @@
  */
 
 export interface SecurityConfig {
+  // Public mode (env: PUBLIC_MODE)
+  // When true: blocks dangerous endpoints, disables localhost auth bypass, tightens rate limits
+  publicMode: boolean;
+  blockedEndpoints: string[];  // Endpoints blocked in public mode
+
   // Authentication
   apiKeys: string[];        // API keys (env: API_KEYS)
   authLocalhost: boolean;   // Skip auth for localhost (env: AUTH_LOCALHOST)
@@ -52,20 +57,37 @@ function parseEnvList(value: string | undefined, defaultValue: string[] = []): s
   return value.split(',').map(s => s.trim()).filter(s => s.length > 0);
 }
 
+// Endpoints that are dangerous in public mode (execute commands, write files, read local FS)
+const BLOCKED_IN_PUBLIC_MODE = [
+  '/api/terminal',
+  '/api/claude',
+  '/api/skills',
+  '/api/skills/save',
+  '/api/skills/read',
+  '/api/transaction',
+  '/api/transaction/skill',
+];
+
 /**
  * Load security configuration from environment
  */
 export function loadSecurityConfig(): SecurityConfig {
-  return {
-    // Authentication
-    apiKeys: parseEnvList(process.env.API_KEYS),
-    authLocalhost: parseEnvBool(process.env.AUTH_LOCALHOST, true),
+  const publicMode = parseEnvBool(process.env.PUBLIC_MODE, false);
 
-    // Rate limiting
+  return {
+    // Public mode
+    publicMode,
+    blockedEndpoints: publicMode ? BLOCKED_IN_PUBLIC_MODE : [],
+
+    // Authentication — force authLocalhost off in public mode (frp/tunnel forwards appear as 127.0.0.1)
+    apiKeys: parseEnvList(process.env.API_KEYS),
+    authLocalhost: publicMode ? false : parseEnvBool(process.env.AUTH_LOCALHOST, true),
+
+    // Rate limiting — tighter in public mode
     rateLimit: {
       windowMs: parseEnvInt(process.env.RATE_LIMIT_WINDOW_MS, 60000),
-      standardMaxRequests: parseEnvInt(process.env.RATE_LIMIT_MAX, 100),
-      heavyMaxRequests: parseEnvInt(process.env.RATE_LIMIT_HEAVY_MAX, 10),
+      standardMaxRequests: parseEnvInt(process.env.RATE_LIMIT_MAX, publicMode ? 50 : 100),
+      heavyMaxRequests: parseEnvInt(process.env.RATE_LIMIT_HEAVY_MAX, publicMode ? 5 : 10),
     },
 
     // Request limits

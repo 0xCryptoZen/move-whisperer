@@ -332,6 +332,15 @@ export default function SubmitSkillContent() {
               </div>
             )}
 
+            {/* WAL token notice */}
+            <div className="p-3 rounded bg-[rgba(var(--neon-cyan-rgb),0.05)] border border-[rgba(var(--neon-cyan-rgb),0.15)]">
+              <p className="text-[rgba(var(--neon-cyan-rgb),0.7)] font-mono-cyber text-xs">
+                Publishing requires <strong className="text-[var(--neon-cyan)]">WAL</strong> tokens for Walrus storage fees.
+                Make sure your wallet has sufficient WAL balance before publishing.
+                {' '}<a href="https://docs.walrus.site/usage/setup.html" target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--neon-cyan)] transition-colors">Get WAL &rarr;</a>
+              </p>
+            </div>
+
             <div className="flex gap-3 justify-between pt-2">
               <button
                 onClick={() => setStep('content')}

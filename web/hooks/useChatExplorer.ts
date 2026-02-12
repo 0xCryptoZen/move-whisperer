@@ -117,7 +117,8 @@ async function sendViaLocalServer(
   onDelta: (text: string) => void,
   _abortSignal?: AbortSignal
 ): Promise<void> {
-  const response = await fetch('http://127.0.0.1:3456/api/chat', {
+  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://127.0.0.1:3456';
+  const response = await fetch(`${serverUrl}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages, context }),
@@ -213,7 +214,7 @@ export function usePlayground(options: UsePlaygroundOptions): UsePlaygroundRetur
             setBackendMode('none');
             removeLastMessage();
             setError(
-              'No AI backend available. Start the local server (pnpm run serve) to use Claude CLI.'
+              'No AI backend available. Start the server (pnpm run serve) or configure an Anthropic API key in Settings.'
             );
             setStreaming(false);
             return;

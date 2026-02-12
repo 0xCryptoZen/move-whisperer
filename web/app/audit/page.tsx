@@ -126,7 +126,8 @@ export default function AuditPage() {
 
       try {
         // Call local server skill-audit endpoint (reads SKILL.md + injects source code)
-        const auditResponse = await fetch('http://127.0.0.1:3456/api/skill-audit', {
+        const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://127.0.0.1:3456';
+        const auditResponse = await fetch(`${serverUrl}/api/skill-audit`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -320,7 +321,7 @@ ${a.recommendations.map((r: string) => `- ${r}`).join('\n') || 'No specific reco
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
-            <span className="font-mono-cyber text-sm">Local server not connected. Run: <code className="px-2 py-0.5 bg-black/50 rounded border border-[rgba(var(--neon-amber-rgb),0.2)]">pnpm run serve</code></span>
+            <span className="font-mono-cyber text-sm">Server not connected. Run: <code className="px-2 py-0.5 bg-black/50 rounded border border-[rgba(var(--neon-amber-rgb),0.2)]">pnpm run serve</code></span>
           </div>
         </div>
       )}

@@ -28,13 +28,30 @@ export interface EndpointConfig {
   requireAuth?: boolean;
   rateLimit?: boolean;
   schema?: z.ZodSchema;
+  privateOnly?: boolean;  // Blocked entirely in PUBLIC_MODE
 }
 
 // Endpoint configurations
 const ENDPOINT_CONFIGS: Record<string, EndpointConfig> = {
+  // Public tier — no auth required, rate limited
   '/': { requireAuth: false, rateLimit: false },
   '/health': { requireAuth: false, rateLimit: false },
-  // All other endpoints require auth and rate limiting
+  '/api/decompile': { requireAuth: false, rateLimit: true },
+  '/api/history': { requireAuth: false, rateLimit: true },
+  '/api/compare': { requireAuth: false, rateLimit: true },
+  '/api/analyze-contract': { requireAuth: false, rateLimit: true },
+  '/api/analyze-changes': { requireAuth: false, rateLimit: true },
+  '/api/skill-audit': { requireAuth: false, rateLimit: true },
+  '/api/chat': { requireAuth: false, rateLimit: true },
+
+  // Private tier — require auth, blocked in PUBLIC_MODE
+  '/api/terminal': { requireAuth: true, rateLimit: true, privateOnly: true },
+  '/api/claude': { requireAuth: true, rateLimit: true, privateOnly: true },
+  '/api/skills': { requireAuth: true, rateLimit: true, privateOnly: true },
+  '/api/skills/save': { requireAuth: true, rateLimit: true, privateOnly: true },
+  '/api/skills/read': { requireAuth: true, rateLimit: true, privateOnly: true },
+  '/api/transaction': { requireAuth: true, rateLimit: true, privateOnly: true },
+  '/api/transaction/skill': { requireAuth: true, rateLimit: true, privateOnly: true },
 };
 
 /**
@@ -77,6 +94,15 @@ export function createSecurityMiddleware(config: SecurityConfig) {
         requireAuth: true,
         rateLimit: true,
       };
+
+      // 0. Block private endpoints in PUBLIC_MODE
+      if (config.publicMode && endpointConfig.privateOnly) {
+        return {
+          allowed: false,
+          status: 403,
+          error: 'This endpoint is not available in public mode',
+        };
+      }
 
       // 1. CORS check (for cross-origin requests)
       const origin = req.headers.origin;

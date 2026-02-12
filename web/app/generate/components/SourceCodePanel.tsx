@@ -9,6 +9,7 @@ interface SourceCodePanelProps {
   modules: Record<string, string>;
   decompiledModules?: Record<string, string>;
   selectedModule?: string;
+  defaultModule?: string;
   onModuleSelect?: (moduleName: string) => void;
   packageId?: string;
 }
@@ -376,11 +377,12 @@ export default function SourceCodePanel({
   modules,
   decompiledModules,
   selectedModule: externalSelectedModule,
+  defaultModule,
   onModuleSelect,
   packageId,
 }: SourceCodePanelProps) {
   const moduleNames = useMemo(() => Object.keys(modules).sort(), [modules]);
-  const [internalSelectedModule, setInternalSelectedModule] = useState<string>(moduleNames[0] || '');
+  const [internalSelectedModule, setInternalSelectedModule] = useState<string>(defaultModule || moduleNames[0] || '');
   const [showDecompiled, setShowDecompiled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 

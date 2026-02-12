@@ -146,7 +146,7 @@ export default function HomePage() {
                   </svg>
                 </div>
                 <h2 className="text-2xl font-bold mb-2 font-mono-cyber neon-text-red">SERVER OFFLINE</h2>
-                <p className="text-muted-foreground font-mono-cyber text-sm">Start local server for CLI tool access</p>
+                <p className="text-muted-foreground font-mono-cyber text-sm">Start server for CLI tool access</p>
               </div>
 
               <div className="bg-black/60 rounded p-6 mb-6 border border-[rgba(var(--neon-green-rgb),0.1)]">

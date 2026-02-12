@@ -755,7 +755,7 @@ export default function PlaygroundPage() {
                 {!isConnected ? (
                   <div className="text-center py-8 px-2">
                     <p className="text-sm text-muted-foreground font-mono-cyber mb-3">
-                      Local server offline
+                      Server offline
                     </p>
                     <code className="text-xs px-2 py-1 rounded bg-black/50 text-[var(--neon-green)]">pnpm serve</code>
                     <button

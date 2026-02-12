@@ -656,7 +656,7 @@ function GeneratePageContent() {
         <div className="flex items-center justify-center gap-2 mt-4">
           <span className={`status-dot ${isLocalServerConnected ? 'status-dot-online' : 'status-dot-offline'}`} />
           <span className="text-xs text-muted-foreground font-mono-cyber">
-            {isLocalServerConnected ? (hasMoveDecompiler ? 'Revela Decompiler Ready' : 'Local Server Connected') : 'Local Server Offline'}
+            {isLocalServerConnected ? (hasMoveDecompiler ? 'Revela Decompiler Ready' : 'Server Connected') : 'Server Offline'}
           </span>
         </div>
       </div>
@@ -837,7 +837,7 @@ function GeneratePageContent() {
           <SourceCodePanel
             modules={artifacts.allModules}
             decompiledModules={artifacts.allDecompiledModules}
-            selectedModule={artifacts.moduleName}
+            defaultModule={artifacts.moduleName}
             packageId={artifacts.packageId}
           />
         </div>

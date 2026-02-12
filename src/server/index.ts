@@ -502,37 +502,49 @@ export function startServer(configOverrides: Partial<ServerConfig> = {}) {
   // Start listening
   server.listen(port, host, () => {
     const securityStatus = security.getStatus();
+    const isPublic = config.security.publicMode;
+    const blocked = config.security.blockedEndpoints;
+
+    const allEndpoints = [
+      { method: 'GET ', path: '/health', desc: 'Server health check' },
+      { method: 'POST', path: '/api/chat', desc: 'Contract chat explorer' },
+      { method: 'POST', path: '/api/decompile', desc: 'Decompile Sui package' },
+      { method: 'POST', path: '/api/claude', desc: 'Execute Claude Code CLI' },
+      { method: 'POST', path: '/api/analyze-contract', desc: 'AI contract analysis' },
+      { method: 'POST', path: '/api/analyze-changes', desc: 'AI version diff analysis' },
+      { method: 'POST', path: '/api/history', desc: 'Get package version history' },
+      { method: 'POST', path: '/api/compare', desc: 'Compare package versions' },
+      { method: 'POST', path: '/api/transaction', desc: 'Analyze a transaction' },
+      { method: 'POST', path: '/api/transaction/skill', desc: 'Generate TX skill' },
+      { method: 'POST', path: '/api/skill-audit', desc: 'AI security audit' },
+      { method: 'POST', path: '/api/terminal', desc: 'Run terminal command' },
+      { method: 'POST', path: '/api/skills', desc: 'List saved skills' },
+      { method: 'POST', path: '/api/skills/save', desc: 'Save a skill' },
+      { method: 'POST', path: '/api/skills/read', desc: 'Read a skill' },
+    ];
+
+    const endpointLines = allEndpoints.map(ep => {
+      const isBlocked = blocked.includes(ep.path);
+      const status = isBlocked ? '[BLOCKED]' : '';
+      const pad = ep.path.length < 24 ? ' '.repeat(24 - ep.path.length) : ' ';
+      return `   ${isBlocked ? '✗' : '•'} ${ep.method} ${ep.path}${pad}${status ? status + ' ' : ''}${ep.desc}`;
+    }).join('\n');
+
     console.log(`
-╔═══════════════════════════════════════════════════════════╗
-║                                                           ║
-║   🚀 MoveWhisperer Server                                  ║
-║                                                           ║
-║   Local server running at:                                ║
-║   → HTTP: http://${host}:${port}                          ║
-║   → WebSocket: ws://${host}:${port}/ws                    ║
-║                                                           ║
-║   Security:                                               ║
-║   → Auth: ${securityStatus.authEnabled ? 'Enabled (API key required)' : 'Disabled (open access)'}          ║
-║   → Rate Limit: Enabled                                   ║
-║   → Input Validation: Enabled                             ║
-║                                                           ║
-║   Available endpoints:                                    ║
-║   • GET  /health             - Server health check        ║
-║   • POST /api/chat           - Contract chat explorer     ║
-║   • POST /api/decompile      - Decompile Sui package      ║
-║   • POST /api/claude         - Execute Claude Code CLI    ║
-║   • POST /api/analyze-contract - AI contract analysis     ║
-║   • POST /api/analyze-changes  - AI version diff analysis ║
-║   • POST /api/history        - Get package version history║
-║   • POST /api/compare        - Compare package versions   ║
-║   • POST /api/transaction    - Analyze a transaction      ║
-║   • POST /api/transaction/skill - Generate TX skill       ║
-║   • POST /api/terminal       - Run terminal command       ║
-║   • POST /api/skills         - List saved skills          ║
-║   • POST /api/skills/save    - Save a skill               ║
-║   • POST /api/skills/read    - Read a skill               ║
-║                                                           ║
-╚═══════════════════════════════════════════════════════════╝
+  MoveWhisperer Server
+
+  Mode:      ${isPublic ? 'PUBLIC (safe endpoints only)' : 'LOCAL (all endpoints)'}
+  HTTP:      http://${host}:${port}
+  WebSocket: ws://${host}:${port}/ws
+
+  Security:
+   Auth:       ${securityStatus.authEnabled ? 'API key required' : 'Open access'}
+   Rate Limit: ${config.security.rateLimit.standardMaxRequests} std / ${config.security.rateLimit.heavyMaxRequests} heavy per min
+   CORS:       ${config.security.allowedOrigins.length > 0 ? config.security.allowedOrigins.join(', ') : 'All origins'}
+   Localhost:  ${config.security.authLocalhost ? 'Auth bypass enabled' : 'No bypass'}
+
+  Endpoints:
+${endpointLines}
 `);
   });
 

@@ -55,6 +55,11 @@ export default function SkillDetailContent() {
   const [copied, setCopied] = useState(false);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [contentError, setContentError] = useState<string | null>(null);
+  const [starred, setStarred] = useState(false);
+  const [starCount, setStarCount] = useState(0);
+  const [starLoading, setStarLoading] = useState(false);
+  const [downloadCount, setDownloadCount] = useState(0);
+  const [downloaded, setDownloaded] = useState(false);
   const cacheSkill = usePurchasedSkillsStore((s) => s.cacheSkill);
 
   const {
@@ -88,6 +93,51 @@ export default function SkillDetailContent() {
         setViewState('error');
       });
   }, [skillId]);
+
+  // Sync local counters when skill data loads
+  useEffect(() => {
+    if (!skill) return;
+    setStarCount(skill.starsCount);
+    setDownloadCount(skill.downloadsCount);
+  }, [skill]);
+
+  // Check if user has starred this skill
+  useEffect(() => {
+    if (!skill || !user) return;
+    fetch(`/api/marketplace/skills/${skill.id}/star`)
+      .then(res => res.json())
+      .then((data) => { const d = data as { starred?: boolean }; if (d.starred) setStarred(true); })
+      .catch(() => {});
+  }, [skill, user]);
+
+  const handleStar = useCallback(async () => {
+    if (!skill || !user) return;
+    setStarLoading(true);
+    try {
+      const res = await fetch(`/api/marketplace/skills/${skill.id}/star`, { method: 'POST' });
+      const data = await res.json() as { starred?: boolean; error?: string };
+      if (res.ok && data.starred !== undefined) {
+        setStarred(data.starred);
+        setStarCount(prev => data.starred ? prev + 1 : prev - 1);
+      }
+    } catch { /* ignore */ }
+    setStarLoading(false);
+  }, [skill, user]);
+
+  const handleDownload = useCallback(async () => {
+    if (!skill || !content) return;
+    // Copy to clipboard
+    navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+
+    // Increment download count (fire and forget)
+    if (!downloaded) {
+      setDownloaded(true);
+      setDownloadCount(prev => prev + 1);
+      fetch(`/api/marketplace/skills/${skill.id}/download`, { method: 'POST' }).catch(() => {});
+    }
+  }, [skill, content, downloaded]);
 
   // Determine view state based on skill data and user access
   useEffect(() => {
@@ -527,11 +577,7 @@ export default function SkillDetailContent() {
 
                 {content && (
                   <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(content);
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
-                    }}
+                    onClick={handleDownload}
                     className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
                   >
                     {copied ? (
@@ -544,9 +590,9 @@ export default function SkillDetailContent() {
                     ) : (
                       <>
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                         </svg>
-                        Copy SKILL.md Content
+                        Download SKILL.md
                       </>
                     )}
                   </button>
@@ -595,18 +641,27 @@ export default function SkillDetailContent() {
               </div>
             )}
 
-            {/* Stats */}
+            {/* Stats & Actions */}
             <div className="glass-panel rounded-2xl p-6">
               <h3 className="font-semibold mb-4">Statistics</h3>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground flex items-center gap-2">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <button
+                    onClick={handleStar}
+                    disabled={starLoading || !user}
+                    className={`flex items-center gap-2 transition-colors ${
+                      starred
+                        ? 'text-amber-400'
+                        : 'text-muted-foreground hover:text-amber-400'
+                    } ${!user ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    title={user ? (starred ? 'Unstar' : 'Star') : 'Sign in to star'}
+                  >
+                    <svg className="w-5 h-5" fill={starred ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                     </svg>
-                    Stars
-                  </span>
-                  <span className="font-medium">{skill.starsCount}</span>
+                    {starred ? 'Starred' : 'Star'}
+                  </button>
+                  <span className="font-medium">{starCount}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground flex items-center gap-2">
@@ -615,7 +670,7 @@ export default function SkillDetailContent() {
                     </svg>
                     Downloads
                   </span>
-                  <span className="font-medium">{skill.downloadsCount}</span>
+                  <span className="font-medium">{downloadCount}</span>
                 </div>
               </div>
             </div>

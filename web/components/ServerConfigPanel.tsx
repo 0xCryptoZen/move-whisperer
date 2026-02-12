@@ -12,10 +12,12 @@ export interface ServerConfig {
   connectionTimeout: number;
 }
 
+const PUBLIC_SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || '';
+
 const DEFAULT_CONFIG: ServerConfig = {
   mode: 'auto',
   localUrl: 'http://localhost:3456',
-  remoteUrl: '',
+  remoteUrl: PUBLIC_SERVER_URL,
   apiKey: '',
   anthropicApiKey: '',
   encryptionEnabled: true,
@@ -144,9 +146,9 @@ export default function ServerConfigPanel({
               ))}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {config.mode === 'auto' && 'Automatically detect local server, fallback to remote'}
-              {config.mode === 'local' && 'Always use local server'}
-              {config.mode === 'remote' && 'Always use remote server'}
+              {config.mode === 'auto' && 'Try local server first, fallback to public server'}
+              {config.mode === 'local' && 'Always use local server (pnpm run serve)'}
+              {config.mode === 'remote' && 'Always use public server'}
             </p>
           </div>
 

@@ -1,0 +1,38 @@
+[Unit]
+Description=MoveWhisperer Server - Sui Move Contract Analysis API
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bond
+Group=bond
+WorkingDirectory=/home/bond/github/bond/auto-sui-skill
+
+# Public mode: blocks dangerous endpoints, tightens rate limits
+Environment="NODE_ENV=production"
+Environment="PUBLIC_MODE=true"
+Environment="PORT=3456"
+Environment="HOST=0.0.0.0"
+Environment="ALLOWED_ORIGINS=https://move-whisperer.pages.dev,https://dolphinslab.cc"
+Environment="PATH=/home/bond/.nvm/versions/node/v22.22.0/bin:/usr/local/bin:/usr/bin:/bin"
+
+# Optional: restrict heavy endpoint rate limit further
+# Environment="RATE_LIMIT_HEAVY_MAX=3"
+
+# Optional: require API key for authenticated endpoints
+# EnvironmentFile=/etc/movewhisperer/server.env
+
+ExecStart=/home/bond/.nvm/versions/node/v22.22.0/bin/pnpm run serve
+
+Restart=always
+RestartSec=10s
+StartLimitInterval=5min
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=movewhisperer
+
+[Install]
+WantedBy=multi-user.target
