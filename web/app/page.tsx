@@ -21,8 +21,8 @@ export default function HomePage() {
 
         <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed holo-shimmer p-2">
           <span className="relative z-10">
-            The AI that speaks Move.
-            Transform Sui Move contracts into intelligent Claude skills.
+            Teach Claude any Sui contract in one click.
+            From bytecode to AI skill — just paste a package ID.
           </span>
         </p>
 
@@ -34,7 +34,7 @@ export default function HomePage() {
             </svg>
           </Link>
           <a
-            href="https://github.com/example/move-whisperer"
+            href="https://github.com/0xCryptoZen/move-whisperer"
             target="_blank"
             rel="noopener noreferrer"
             className="btn-pill-ghost"
@@ -299,7 +299,7 @@ export default function HomePage() {
                     </div>
                   </div>
                   <h3 className="font-semibold mb-1 font-mono-cyber text-sm">claude</h3>
-                  <p className="text-xs text-muted-foreground mb-2">Claude Code CLI AI generation</p>
+                  <p className="text-xs text-muted-foreground mb-2">AI-powered skill generation & audit</p>
                   {health?.tools.find(t => t.name === 'claude')?.available ? (
                     <p className="text-xs neon-text-green truncate font-mono-cyber">
                       {health.tools.find(t => t.name === 'claude')?.version || 'INSTALLED'}
@@ -337,7 +337,7 @@ export default function HomePage() {
                     </div>
                   </div>
                   <h3 className="font-semibold mb-1 font-mono-cyber text-sm">sui</h3>
-                  <p className="text-xs text-muted-foreground mb-2">Sui CLI blockchain interface</p>
+                  <p className="text-xs text-muted-foreground mb-2">Sui blockchain CLI tools</p>
                   {health?.tools.find(t => t.name === 'sui')?.available ? (
                     <p className="text-xs neon-text-green truncate font-mono-cyber">
                       {health.tools.find(t => t.name === 'sui')?.version || 'INSTALLED'}
@@ -366,9 +366,9 @@ export default function HomePage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
-          <h3 className="text-xl font-semibold mb-3 font-mono-cyber text-[var(--neon-cyan)]">From Package ID</h3>
+          <h3 className="text-xl font-semibold mb-3 font-mono-cyber text-[var(--neon-cyan)]">Package ID → SKILL.md</h3>
           <p className="text-muted-foreground leading-relaxed text-sm">
-            Enter any Sui package ID to automatically fetch ABI and generate comprehensive skill documentation.
+            Enter a Sui package ID, auto-fetch ABI and bytecode, decompile, and generate a Claude SKILL.md.
           </p>
         </div>
 
@@ -380,7 +380,7 @@ export default function HomePage() {
           </div>
           <h3 className="text-xl font-semibold mb-3 font-mono-cyber text-[var(--neon-magenta)]">6 Scene Modes</h3>
           <p className="text-muted-foreground leading-relaxed text-sm">
-            Generate specialized documentation for SDK integration, security audit, frontend dev, trading bots, and more.
+            SDK integration, security audit, frontend, trading bot, protocol learning, and API docs — each scene tailors the output.
           </p>
         </div>
 
@@ -390,9 +390,9 @@ export default function HomePage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
           </div>
-          <h3 className="text-xl font-semibold mb-3 font-mono-cyber text-[var(--neon-green)]">Complete Package</h3>
+          <h3 className="text-xl font-semibold mb-3 font-mono-cyber text-[var(--neon-green)]">Marketplace & Playground</h3>
           <p className="text-muted-foreground leading-relaxed text-sm">
-            Download skill package with SKILL.md, TypeScript types, code examples, and ready-to-use scripts.
+            Publish skills to the on-chain marketplace (Walrus + Seal), or chat with Claude using any skill as context.
           </p>
         </div>
       </div>
@@ -403,7 +403,7 @@ export default function HomePage() {
           <span className="gradient-text">Choose Your Scene</span>
         </h2>
         <p className="text-muted-foreground text-center mb-10 max-w-xl mx-auto text-sm">
-          Different purposes require different documentation. Select the scene that fits your needs.
+          Each scene generates a different SKILL.md optimized for a specific use case.
         </p>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -434,7 +434,7 @@ export default function HomePage() {
       <div className="text-center mt-16 pt-10 relative">
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--neon-cyan)] to-transparent opacity-30" />
         <p className="text-sm text-muted-foreground font-mono-cyber">
-          Built for the Sui ecosystem. Open source and free to use.
+          Open source. Built for Sui developers.
         </p>
       </div>
     </div>

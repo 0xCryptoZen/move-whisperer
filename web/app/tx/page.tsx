@@ -106,7 +106,7 @@ export default function TransactionAnalyzerPage() {
             <div>
               <h1 className="text-2xl font-bold font-mono-cyber neon-text tracking-wide">Transaction Analyzer</h1>
               <p className="text-muted-foreground text-sm font-mono-cyber">
-                Analyze transactions and discover contracts to generate skills
+                Decode Sui transactions — view call sequence, involved contracts, and balance changes
               </p>
             </div>
           </div>
@@ -299,7 +299,7 @@ export default function TransactionAnalyzerPage() {
             </div>
             <h3 className="text-lg font-mono-cyber neon-text mb-2">Analyze a Transaction</h3>
             <p className="text-muted-foreground max-w-md mx-auto font-mono-cyber text-sm">
-              Enter a Sui transaction digest to understand what it does,
+              Paste a transaction digest to view the call sequence,
               discover the contracts involved, and generate skills for them.
             </p>
           </div>

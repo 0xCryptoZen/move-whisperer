@@ -18,6 +18,19 @@ Generate Claude SKILL.md files from Sui Move smart contracts — 6 scene modes, 
 - **TX Analyzer** — Inspect and understand Sui transactions
 - **Version History** — Compare contract versions across upgrades
 
+## Prerequisites
+
+| Requirement | Version | Required | Notes |
+|-------------|---------|----------|-------|
+| **Node.js** | >= 20 | Yes | Runtime |
+| **pnpm** | >= 8 | Yes | `npm install -g pnpm` |
+| **Sui CLI** | Latest | No | On-chain operations ([Install](https://docs.sui.io/guides/developer/getting-started/sui-install)) |
+| **Claude Code** | Latest | No | AI audit & playground ([Install](https://claude.ai/code)) |
+| **Revela** | Latest | No | Move bytecode decompiler — `pnpm run install:revela` ([Repo](https://github.com/verichains/revela)) |
+| **Rust** | Latest | No | Only needed to build Revela from source |
+
+> **Minimal setup:** Node.js + pnpm is enough for CLI generation and Web UI. Sui CLI, Claude Code, and Revela unlock additional features (on-chain ops, AI audit, decompilation).
+
 ## Quick Start
 
 ```bash

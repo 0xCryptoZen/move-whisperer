@@ -651,7 +651,7 @@ function GeneratePageContent() {
           Generate Skill
         </h1>
         <p className="text-lg text-muted-foreground font-mono-cyber tracking-wide">
-          Transform Sui Move contracts into Claude-ready skill documents
+          Generate SKILL.md from any Sui Move package — decompile, analyze, and export
         </p>
         <div className="flex items-center justify-center gap-2 mt-4">
           <span className={`status-dot ${isLocalServerConnected ? 'status-dot-online' : 'status-dot-offline'}`} />

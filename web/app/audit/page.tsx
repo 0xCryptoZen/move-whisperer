@@ -323,7 +323,7 @@ ${a.recommendations.map((r: string) => `- ${r}`).join('\n') || 'No specific reco
           Multi-Version Security Audit
         </h1>
         <p className="text-muted-foreground font-mono-cyber text-sm tracking-wide">
-          Audit smart contract versions sequentially, from v1 to latest, with change analysis
+          AI-powered security audit for each contract version, with cross-version change analysis
         </p>
       </div>
 
@@ -570,7 +570,7 @@ ${a.recommendations.map((r: string) => `- ${r}`).join('\n') || 'No specific reco
           </div>
           <h3 className="text-xl font-semibold mb-2 font-mono-cyber neon-text-red">Multi-Version Audit</h3>
           <p className="text-muted-foreground max-w-md mx-auto font-mono-cyber text-sm">
-            Enter a package ID to fetch version history and perform sequential security audits from v1 to the latest version.
+            Enter a package ID to fetch all versions. Each version is audited by Claude CLI using the move-audit skill.
           </p>
         </div>
       )}

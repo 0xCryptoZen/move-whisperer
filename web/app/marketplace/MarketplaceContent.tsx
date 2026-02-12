@@ -324,7 +324,7 @@ export default function MarketplacePage() {
             <div>
               <h1 className="text-2xl font-bold font-mono-cyber neon-text tracking-wide uppercase">Skill Marketplace</h1>
               <p className="text-muted-foreground mt-1 font-mono-cyber text-sm">
-                Discover and share Claude skills for Sui Move contracts &middot; Powered by Walrus + Seal
+                Browse, publish, and trade Claude skills for Sui Move contracts
               </p>
             </div>
             <Link

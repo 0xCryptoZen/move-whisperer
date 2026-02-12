@@ -581,7 +581,7 @@ export default function PlaygroundPage() {
         <div>
           <h1 className="text-2xl font-bold neon-text font-mono-cyber">Playground</h1>
           <p className="text-sm text-muted-foreground font-mono-cyber mt-1">
-            Select a skill and chat with Claude
+            Chat with Claude using any SKILL.md as context
           </p>
         </div>
         <button
@@ -812,7 +812,7 @@ export default function PlaygroundPage() {
               </div>
               <h3 className="text-lg font-semibold font-mono-cyber mb-2">Select a Skill</h3>
               <p className="text-sm text-muted-foreground font-mono-cyber max-w-sm">
-                Choose a skill from the sidebar to start chatting with Claude using that skill as context.
+                Select a skill from the sidebar. Claude will use it as context for your conversation.
               </p>
             </div>
           ) : (
