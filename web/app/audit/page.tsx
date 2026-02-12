@@ -145,7 +145,7 @@ export default function AuditPage() {
           }
         }
 
-        // Fallback to basic static analysis if skill-audit didn't return results
+        // Fallback to edge route (returns notice that server is needed)
         if (!auditResult) {
           const fallbackResponse = await fetch('/api/audit', {
             method: 'POST',
@@ -156,11 +156,19 @@ export default function AuditPage() {
           if (fallbackResponse.ok) {
             const data = await fallbackResponse.json() as { audit?: any };
             if (data.audit) {
-              const a = data.audit;
-              auditResult = `## Security Audit - v${version} (Static Analysis)
+              const a = data.audit as {
+                summary: { riskLevel: string; overview?: string; totalFunctions: number; highRiskFunctions: number; adminFunctions: number; capabilities: string[]; coinHandlers: string[] };
+                vulnerabilities: Array<{ severity: string; type: string; description: string; location?: string; recommendation: string }>;
+                permissions: Array<{ function: string; visibility: string; isEntry: boolean; risk: string; requiredCapabilities: string[]; notes?: string }>;
+                recommendations: string[];
+                rawAnalysis?: string;
+                aiPowered?: boolean;
+              };
+              const label = a.aiPowered ? 'AI Audit' : 'Static Analysis';
+              auditResult = `## Security Audit - v${version} (${label})
 
 ### Risk Level: ${a.summary.riskLevel.toUpperCase()}
-
+${a.summary.overview ? `\n${a.summary.overview}\n` : ''}
 ### Summary
 - Total Functions: ${a.summary.totalFunctions}
 - High Risk Functions: ${a.summary.highRiskFunctions}
@@ -169,9 +177,14 @@ export default function AuditPage() {
 - Coin Handlers: ${a.summary.coinHandlers.join(', ') || 'None'}
 
 ### Vulnerabilities (${a.vulnerabilities.length})
-${a.vulnerabilities.map((v: { severity: string; type: string; description: string; recommendation: string }) =>
-  `- **[${v.severity.toUpperCase()}]** ${v.type}: ${v.description}\n  - Recommendation: ${v.recommendation}`
+${a.vulnerabilities.map((v) =>
+  `- **[${v.severity.toUpperCase()}]** ${v.type}: ${v.description}${v.location ? ` (at \`${v.location}\`)` : ''}\n  - Recommendation: ${v.recommendation}`
 ).join('\n') || 'No vulnerabilities detected'}
+
+### Function Permissions (${a.permissions.length})
+${a.permissions.map((p) =>
+  `- \`${p.function}\` [${p.visibility}] — Risk: ${p.risk}${p.requiredCapabilities.length ? ` — Requires: ${p.requiredCapabilities.join(', ')}` : ''}${p.notes ? ` — ${p.notes}` : ''}`
+).join('\n') || 'No public functions detected'}
 
 ### Recommendations
 ${a.recommendations.map((r: string) => `- ${r}`).join('\n') || 'No specific recommendations'}`;

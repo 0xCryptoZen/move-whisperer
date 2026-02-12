@@ -1,13 +1,17 @@
 /**
  * Skill-based audit endpoint
- * Reads .claude/skills/move-audit/SKILL.md and injects it as prompt context
- * for Claude CLI to perform a comprehensive Sui Move security audit.
+ * Uses Claude CLI with the move-audit SKILL.md to perform
+ * a comprehensive Sui Move security audit.
+ *
+ * Flow: Frontend → Server → claude CLI (--dangerously-skip-permissions)
  */
 
 import { ServerResponse } from 'http';
 import { WebSocket } from 'ws';
-import { readFile } from 'fs/promises';
+import { readFile, writeFile, unlink } from 'fs/promises';
 import { resolve } from 'path';
+import { tmpdir } from 'os';
+import { randomBytes } from 'crypto';
 import { commandExists, streamCommand, executeCommand } from '../terminal.js';
 
 interface SkillAuditRequest {
@@ -18,55 +22,41 @@ interface SkillAuditRequest {
   streamId?: string;
 }
 
-// Cache the SKILL.md content to avoid re-reading on every request
-let cachedSkillMd: string | null = null;
-
 /**
- * Load the move-audit SKILL.md content (cached)
+ * Write source code to a temp file so claude can read it as context
  */
-async function loadSkillMd(): Promise<string> {
-  if (cachedSkillMd) return cachedSkillMd;
-
-  // Try multiple possible locations
-  const candidates = [
-    resolve(process.cwd(), '.claude/skills/move-audit/SKILL.md'),
-    resolve(process.cwd(), '../.claude/skills/move-audit/SKILL.md'),
-  ];
-
-  for (const path of candidates) {
-    try {
-      const content = await readFile(path, 'utf-8');
-      // Strip frontmatter (--- ... ---) since we're injecting as prompt
-      const stripped = content.replace(/^---[\s\S]*?---\n*/, '');
-      cachedSkillMd = stripped;
-      console.log(`[SkillAudit] Loaded SKILL.md from ${path} (${stripped.length} chars)`);
-      return cachedSkillMd;
-    } catch {
-      // Try next candidate
-    }
-  }
-
-  throw new Error('move-audit SKILL.md not found');
+async function writeTempSourceFile(sourceCode: string, packageId: string): Promise<string> {
+  const id = randomBytes(8).toString('hex');
+  const filename = `audit_${packageId.slice(0, 8)}_${id}.move`;
+  const filepath = resolve(tmpdir(), filename);
+  await writeFile(filepath, sourceCode, 'utf-8');
+  return filepath;
 }
 
 /**
- * Build the full audit prompt
+ * Build the audit prompt for Claude CLI
  */
-function buildAuditPrompt(skillMd: string, request: SkillAuditRequest): string {
-  const { packageId, sourceCode, network = 'mainnet', version } = request;
+function buildAuditPrompt(request: SkillAuditRequest, sourceFilePath: string): string {
+  const { packageId, network = 'mainnet', version } = request;
 
-  return `${skillMd}
+  return `Perform a security audit of this Sui Move contract using the move-audit skill framework.
 
-## Target Contract
+Target:
+- Package ID: ${packageId}
+- Network: ${network}${version ? `\n- Version: ${version}` : ''}
+- Source file: ${sourceFilePath}
 
-- **Package ID:** ${packageId}
-- **Network:** ${network}${version ? `\n- **Version:** ${version}` : ''}
+Read the source file and perform a comprehensive security audit following the move-audit SKILL.md framework. Focus on:
+1. Access control and capability checks
+2. Financial safety (coin/balance operations)
+3. Shared object mutation guards
+4. Bit-shift overflow risks (<<, >> silently truncate in Move)
+5. Logic bugs and edge cases
+6. Third-party dependency risks
 
-Perform a comprehensive security audit of this contract following the framework above. Skip Phase 2 (automated analysis) since we only have decompiled source. Focus on Phases 3-7.
+Output a structured audit report with risk level, vulnerabilities found, function permissions analysis, and actionable recommendations.
 
-\`\`\`move
-${sourceCode}
-\`\`\``;
+IMPORTANT: Only report REAL issues verified from the code. Avoid false positives — shared objects with key+store are normal in Sui, Move arithmetic aborts on overflow, and Sui prevents reentrancy.`;
 }
 
 /**
@@ -99,23 +89,33 @@ export async function handleSkillAudit(
     return;
   }
 
-  // Load SKILL.md
-  let skillMd: string;
+  // Verify SKILL.md exists
+  const skillPath = resolve(process.cwd(), '.claude/skills/move-audit/SKILL.md');
   try {
-    skillMd = await loadSkillMd();
+    await readFile(skillPath, 'utf-8');
+  } catch {
+    sendError(res, `move-audit SKILL.md not found at ${skillPath}`, 500);
+    return;
+  }
+
+  // Write source code to temp file
+  let tempFile: string;
+  try {
+    tempFile = await writeTempSourceFile(sourceCode, packageId);
   } catch (error) {
-    const msg = error instanceof Error ? error.message : 'Failed to load SKILL.md';
-    console.error('[SkillAudit]', msg);
+    const msg = error instanceof Error ? error.message : 'Failed to write temp file';
     sendError(res, msg, 500);
     return;
   }
 
-  // Build prompt
-  const prompt = buildAuditPrompt(skillMd, request);
+  // Build prompt and command
+  const prompt = buildAuditPrompt(request, tempFile);
+  // Use --dangerously-skip-permissions to avoid interactive permission prompts
+  // Use -p (print mode) for non-interactive output
   const escapedPrompt = prompt.replace(/'/g, "'\\''");
-  const command = `claude --print '${escapedPrompt}'`;
+  const command = `claude -p --dangerously-skip-permissions '${escapedPrompt}'`;
 
-  console.log(`[SkillAudit] Starting audit for ${packageId} (prompt: ${prompt.length} chars)`);
+  console.log(`[SkillAudit] Starting audit for ${packageId} (source: ${sourceCode.length} chars, temp: ${tempFile})`);
 
   // Get WebSocket for streaming
   const ws = streamId ? wsConnections.get(streamId) : null;
@@ -164,5 +164,8 @@ export async function handleSkillAudit(
     const message = error instanceof Error ? error.message : 'Skill audit failed';
     console.error('[SkillAudit] Error:', message);
     sendError(res, message);
+  } finally {
+    // Clean up temp file
+    try { await unlink(tempFile); } catch { /* ignore */ }
   }
 }

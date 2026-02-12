@@ -2,7 +2,9 @@
 
 Generate Claude SKILL.md files from Sui Move smart contracts. Analyze on-chain packages and produce ready-to-use AI skill documentation across 6 scene modes.
 
-**Live:** [skills.sui.tools](https://skills.sui.tools)
+**Live:** [move-whisperer.pages.dev](https://move-whisperer.pages.dev)
+
+**Demo:** [YouTube](https://www.youtube.com/watch?v=laoO1t4kHfk)
 
 ## Table of Contents
 
@@ -499,6 +501,10 @@ cd contracts/skill_marketplace && sui move test
 **Infra:** Cloudflare Pages + D1 + KV, Walrus (decentralized storage), Seal (threshold encryption)
 
 **Testing:** Vitest, Sui Move Test
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=0xCryptoZen/move-whisperer&type=Date)](https://star-history.com/#0xCryptoZen/move-whisperer&Date)
 
 ## License
 
