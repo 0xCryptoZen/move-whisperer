@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm';
 import { useSkillMarketplace } from '@/hooks/useSkillMarketplace';
 import { mistToSui } from '@/lib/contracts/skill-marketplace';
 import { useAuth } from '@/lib/auth/context';
+import { usePurchasedSkillsStore } from '@/lib/stores/purchased-skills-store';
 
 interface SkillDetail {
   id: string;
@@ -53,6 +54,8 @@ export default function SkillDetailContent() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
+  const [contentError, setContentError] = useState<string | null>(null);
+  const cacheSkill = usePurchasedSkillsStore((s) => s.cacheSkill);
 
   const {
     purchaseSkill,
@@ -109,15 +112,24 @@ export default function SkillDetailContent() {
     if (viewState !== 'full' || !skill?.blobId || !skill?.onChainId || content) return;
 
     const loadContent = async () => {
+      setContentError(null);
+      const isFree = skill.priceMist === 0;
+      const isCreator = address && skill.creatorAddress === address;
       try {
-        const isFree = skill.priceMist === 0;
         let text: string;
 
         if (isFree || !skill.isEncrypted) {
+          // Free or unencrypted: download plaintext from Walrus
           text = await getFreeSkillContent({
             blobId: skill.blobId!,
             objectId: skill.onChainId!,
           });
+        } else if (isCreator) {
+          // Creator viewing own encrypted skill - try downloading raw blob
+          // Creator doesn't have an AccessCap so can't use Seal decrypt path
+          // Show a message instead of failing silently
+          setContentError('You are the creator of this encrypted skill. To view it, purchase or claim your own AccessCap. Other users who purchase can decrypt and view the content.');
+          return;
         } else {
           text = await getSkillContent({
             blobId: skill.blobId!,
@@ -127,13 +139,30 @@ export default function SkillDetailContent() {
           });
         }
         setContent(text);
-      } catch (err) {
+
+        // Cache for playground use
+        cacheSkill({
+          skillId: skill.id,
+          onChainId: skill.onChainId!,
+          title: skill.title,
+          description: skill.description,
+          content: text,
+          scene: skill.scene,
+          network: skill.network,
+          packageId: skill.packageId,
+          cachedAt: Date.now(),
+        });
+      } catch (err: unknown) {
         console.error('Failed to load content:', err);
+        const msg = err instanceof Error ? err.message
+          : typeof err === 'string' ? err
+          : JSON.stringify(err);
+        setContentError(msg || 'Unknown error');
       }
     };
 
     loadContent();
-  }, [viewState, skill, content, getFreeSkillContent, getSkillContent]);
+  }, [viewState, skill, content, getFreeSkillContent, getSkillContent, cacheSkill]);
 
   const handlePurchase = useCallback(async () => {
     if (!skill?.onChainId) return;
@@ -320,9 +349,12 @@ export default function SkillDetailContent() {
                   </div>
                 ) : (
                   <div className="text-center py-8">
-                    <p className="text-muted-foreground text-sm">Content could not be loaded. The blob may be temporarily unavailable.</p>
+                    <p className="text-muted-foreground text-sm">Content could not be loaded.</p>
+                    {contentError && (
+                      <p className="text-red-400 text-xs mt-2 font-mono max-w-md mx-auto break-all">{contentError}</p>
+                    )}
                     <button
-                      onClick={() => setContent(null)}
+                      onClick={() => { setContent(null); setContentError(null); }}
                       className="mt-3 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm transition-colors"
                     >
                       Retry

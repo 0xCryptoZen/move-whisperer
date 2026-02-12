@@ -121,44 +121,42 @@ export default function AuditPage() {
         throw new Error('No source code available');
       }
 
-      // 3. Generate audit using Claude Code's move-audit skill
+      // 3. Generate audit using move-audit SKILL.md injected into Claude prompt
       let auditResult = '';
 
       try {
-        // Call local server to execute Claude with move-audit skill
-        const claudeResponse = await fetch('http://127.0.0.1:3456/api/claude', {
+        // Call local server skill-audit endpoint (reads SKILL.md + injects source code)
+        const auditResponse = await fetch('http://127.0.0.1:3456/api/skill-audit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            prompt: `/move-audit\n\nAudit the following Sui Move contract (Package: ${packageId}, Version: ${version}, Network: ${network}):\n\n\`\`\`move\n${sourceCode}\n\`\`\``,
+            packageId,
+            sourceCode,
+            network,
+            version,
           }),
         });
 
-        if (claudeResponse.ok) {
-          const data = await claudeResponse.json() as { success?: boolean; output?: string };
+        if (auditResponse.ok) {
+          const data = await auditResponse.json() as { success?: boolean; output?: string };
           if (data.success && data.output) {
             auditResult = `## Security Audit - v${version}\n\n${data.output}`;
-          } else {
-            auditResult = `## Security Audit - v${version}\n\nAudit completed but no detailed output available.\n\nPackage: ${packageId}`;
           }
-        } else {
-          // Fallback to basic audit API
-          const auditResponse = await fetch('/api/audit', {
+        }
+
+        // Fallback to basic static analysis if skill-audit didn't return results
+        if (!auditResult) {
+          const fallbackResponse = await fetch('/api/audit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              packageId,
-              sourceCode,
-              network,
-              version,
-            }),
+            body: JSON.stringify({ packageId, sourceCode, network, version }),
           });
 
-          if (auditResponse.ok) {
-            const data = await auditResponse.json() as { audit?: any };
+          if (fallbackResponse.ok) {
+            const data = await fallbackResponse.json() as { audit?: any };
             if (data.audit) {
               const a = data.audit;
-              auditResult = `## Security Audit - v${version}
+              auditResult = `## Security Audit - v${version} (Static Analysis)
 
 ### Risk Level: ${a.summary.riskLevel.toUpperCase()}
 
@@ -180,8 +178,8 @@ ${a.recommendations.map((r: string) => `- ${r}`).join('\n') || 'No specific reco
           }
         }
       } catch (e) {
-        console.error('Claude audit failed:', e);
-        auditResult = `## Security Audit - v${version}\n\nPackage: ${packageId}\n\nBasic analysis completed. Claude skill unavailable.`;
+        console.error('Skill audit failed:', e);
+        auditResult = `## Security Audit - v${version}\n\nPackage: ${packageId}\n\nBasic analysis completed. Audit skill unavailable.`;
       }
 
       if (!auditResult) {

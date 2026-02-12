@@ -224,6 +224,39 @@ module skill_marketplace::skill_marketplace {
         assert!(object::id(skill) == target_id, ENoAccess);
     }
 
+    /// Seal access policy v2: does NOT parse the id against the SkillRecord object ID.
+    /// The `id` parameter is passed through by the Seal key server and must match
+    /// the inner ID used during encryption (e.g. the blob ID hex).
+    /// This function only validates that the AccessCap is for the given skill.
+    entry fun seal_approve_v2(
+        _id: vector<u8>,
+        skill: &SkillRecord,
+        access_cap: &AccessCap,
+    ) {
+        assert!(access_cap.skill_id == object::id(skill), ENoAccess);
+    }
+
+    /// Seal access policy v2 for free skills.
+    entry fun seal_approve_free_v2(
+        _id: vector<u8>,
+        skill: &SkillRecord,
+    ) {
+        assert!(skill.price == 0, ESkillNotPaid);
+    }
+
+    /// Update the blob reference after initial publish. Creator only.
+    /// Enables a two-step publish flow: create SkillRecord first, then encrypt and upload.
+    public fun update_blob(
+        skill: &mut SkillRecord,
+        new_blob_id: u256,
+        is_encrypted: bool,
+        ctx: &mut TxContext,
+    ) {
+        assert!(skill.creator == ctx.sender(), ENotCreator);
+        skill.blob_id = new_blob_id;
+        skill.is_encrypted = is_encrypted;
+    }
+
     /// Update the price of a skill. Only the creator can do this.
     public fun update_price(
         skill: &mut SkillRecord,
@@ -620,6 +653,91 @@ module skill_marketplace::skill_marketplace {
         let skill = ts::take_shared<SkillRecord>(&scenario);
         let wrong_id = std::bcs::to_bytes(&@0x0);
         seal_approve_free(wrong_id, &skill);
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
+
+    // ---- seal_approve_v2 ----
+
+    #[test]
+    fun test_seal_approve_v2_valid_access() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_paid(&mut scenario);
+
+        ts::next_tx(&mut scenario, BUYER);
+        let mut skill = ts::take_shared<SkillRecord>(&scenario);
+        let clock = clock::create_for_testing(ts::ctx(&mut scenario));
+        let payment = coin::mint_for_testing<SUI>(PRICE, ts::ctx(&mut scenario));
+        purchase_skill(&mut skill, payment, &clock, ts::ctx(&mut scenario));
+        ts::return_shared(skill);
+        clock::destroy_for_testing(clock);
+
+        // seal_approve_v2 should succeed with ANY id bytes
+        ts::next_tx(&mut scenario, BUYER);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        let cap = ts::take_from_sender<AccessCap>(&scenario);
+        seal_approve_v2(b"arbitrary_blob_id_bytes", &skill, &cap);
+        ts::return_to_sender(&scenario, cap);
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    fun test_seal_approve_free_v2_valid() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_free(&mut scenario);
+
+        ts::next_tx(&mut scenario, BUYER);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        seal_approve_free_v2(b"arbitrary_bytes", &skill);
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ESkillNotPaid)]
+    fun test_seal_approve_free_v2_on_paid_aborts() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_paid(&mut scenario);
+
+        ts::next_tx(&mut scenario, BUYER);
+        let skill = ts::take_shared<SkillRecord>(&scenario);
+        seal_approve_free_v2(b"any", &skill);
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
+
+    // ---- update_blob ----
+
+    #[test]
+    fun test_update_blob_by_creator() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_paid(&mut scenario);
+
+        ts::next_tx(&mut scenario, CREATOR);
+        let mut skill = ts::take_shared<SkillRecord>(&scenario);
+        assert!(skill.blob_id == BLOB_ID);
+        update_blob(&mut skill, 999, true, ts::ctx(&mut scenario));
+        assert!(skill.blob_id == 999);
+        assert!(skill.is_encrypted == true);
+        ts::return_shared(skill);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ENotCreator)]
+    fun test_update_blob_by_non_creator_aborts() {
+        let mut scenario = ts::begin(CREATOR);
+        publish_paid(&mut scenario);
+
+        ts::next_tx(&mut scenario, OTHER);
+        let mut skill = ts::take_shared<SkillRecord>(&scenario);
+        update_blob(&mut skill, 999, false, ts::ctx(&mut scenario));
         ts::return_shared(skill);
 
         ts::end(scenario);

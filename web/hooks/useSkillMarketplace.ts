@@ -3,7 +3,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useCurrentAccount, useSignAndExecuteTransaction, useSignPersonalMessage, useSuiClient } from '@mysten/dapp-kit';
 import { Transaction } from '@mysten/sui/transactions';
-import { toHex, fromBase64 } from '@mysten/bcs';
+import { toHex, fromBase64, fromHex } from '@mysten/bcs';
+import { EncryptedObject } from '@mysten/seal';
 import { getWalrusClient, downloadSkillBlob } from '@/lib/walrus/client';
 import { getSealClient, createSessionKey, decryptSkillContent, encryptSkillContent, SessionKey } from '@/lib/seal/client';
 import {
@@ -297,8 +298,14 @@ export function useSkillMarketplace() {
       setLoading(true);
 
       try {
-        const walrusClient = getWalrusClient(MARKETPLACE_NETWORK);
-        const rawData = await downloadSkillBlob(walrusClient, skill.blobId);
+        // Step 1: Download from Walrus
+        let rawData: Uint8Array;
+        try {
+          const walrusClient = getWalrusClient(MARKETPLACE_NETWORK);
+          rawData = await downloadSkillBlob(walrusClient, skill.blobId);
+        } catch (e) {
+          throw new Error(`Walrus download failed: ${e instanceof Error ? e.message : e}`);
+        }
 
         if (!skill.isEncrypted) {
           // Free skill - return plaintext
@@ -308,43 +315,81 @@ export function useSkillMarketplace() {
         // Encrypted skill - need to decrypt with Seal
         if (!account?.address) throw new Error('Wallet not connected');
 
+        // Step 2: Parse encrypted data to extract the Seal inner ID
+        // The inner ID was set during encryption and must match the first arg of seal_approve_v2
+        let innerIdBytes: number[];
+        try {
+          const encObj = EncryptedObject.parse(rawData);
+          // encObj.id is a hex string of the inner ID used during encryption
+          innerIdBytes = Array.from(fromHex(encObj.id));
+        } catch (e) {
+          throw new Error(`Failed to parse encrypted object: ${e instanceof Error ? e.message : e}`);
+        }
+
+        // Step 3: Check AccessCap
         const cap = hasAccess(skill.objectId);
-        if (!cap) throw new Error('No access to this skill. Purchase it first.');
+        if (!cap) throw new Error(`No AccessCap found for skill ${skill.objectId}. Purchase it first.`);
 
-        // Create session key for decryption
-        const sessionKey = await createSessionKey(
-          MARKETPLACE_NETWORK,
-          account.address,
-          MARKETPLACE_PACKAGE_ID,
-          10, // 10 min TTL
-        );
+        // Step 4: Create session key for decryption
+        let sessionKey: SessionKey;
+        try {
+          sessionKey = await createSessionKey(
+            MARKETPLACE_NETWORK,
+            account.address,
+            MARKETPLACE_PACKAGE_ID,
+            10, // 10 min TTL
+          );
+        } catch (e) {
+          throw new Error(`Session key creation failed: ${e instanceof Error ? e.message : e}`);
+        }
 
-        // Sign the session key personal message
-        const personalMessage = sessionKey.getPersonalMessage();
-        const { signature } = await signPersonalMessage({ message: personalMessage });
-        await sessionKey.setPersonalMessageSignature(signature);
+        // Step 5: Sign the session key personal message
+        try {
+          const personalMessage = sessionKey.getPersonalMessage();
+          const { signature } = await signPersonalMessage({ message: personalMessage });
+          await sessionKey.setPersonalMessageSignature(signature);
+        } catch (e) {
+          throw new Error(`Session key signing failed: ${e instanceof Error ? e.message : e}`);
+        }
 
-        // Build seal_approve transaction (not executed, just for key servers)
-        const sealApproveTx = buildSealApproveTx(
-          skill.objectId,
-          cap.objectId,
-          skill.blobId,
-        );
-        const txBytes = await sealApproveTx.build({
-          client: suiClient,
-          onlyTransactionKind: true,
-        });
+        // Step 6: Build seal_approve_v2 transaction (not executed, just for key servers)
+        // The first arg (innerIdBytes) must match the encryption inner ID so the
+        // key server derives the correct key. seal_approve_v2 only validates AccessCap.
+        let txBytes: Uint8Array;
+        try {
+          const sealApproveTx = buildSealApproveTx(
+            innerIdBytes,
+            skill.objectId,
+            cap.objectId,
+          );
+          txBytes = await sealApproveTx.build({
+            client: suiClient,
+            onlyTransactionKind: true,
+          });
+        } catch (e) {
+          throw new Error(`Build seal_approve tx failed: ${e instanceof Error ? e.message : e}`);
+        }
 
-        // Decrypt
-        const sealClient = getSealClient(MARKETPLACE_NETWORK);
-        const decrypted = await decryptSkillContent(
-          sealClient,
-          rawData,
-          sessionKey,
-          txBytes,
-        );
-
-        return new TextDecoder().decode(decrypted);
+        // Step 7: Decrypt with Seal
+        try {
+          const sealClient = getSealClient(MARKETPLACE_NETWORK);
+          const decrypted = await decryptSkillContent(
+            sealClient,
+            rawData,
+            sessionKey,
+            txBytes,
+          );
+          return new TextDecoder().decode(decrypted);
+        } catch (e: unknown) {
+          // Seal SDK may throw non-standard errors; capture as much detail as possible
+          const details = e instanceof Error
+            ? `${e.name}: ${e.message}${e.cause ? ` (cause: ${e.cause})` : ''}`
+            : typeof e === 'string'
+              ? e
+              : (() => { try { return JSON.stringify(e); } catch { return String(e); } })();
+          console.error('Seal decrypt error object:', e);
+          throw new Error(`Seal decrypt failed: ${details}`);
+        }
       } finally {
         setLoading(false);
       }

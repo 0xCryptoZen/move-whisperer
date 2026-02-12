@@ -200,6 +200,19 @@ export const WsExecuteMessageSchema = z.object({
 export type WsExecuteMessage = z.infer<typeof WsExecuteMessageSchema>;
 
 /**
+ * POST /api/skill-audit
+ */
+export const SkillAuditSchema = z.object({
+  packageId: packageIdSchema,
+  sourceCode: z.string().min(1).max(500000), // Max 500KB source
+  network: networkSchema.optional(),
+  version: z.number().int().min(1).optional(),
+  streamId: streamIdSchema,
+});
+
+export type SkillAuditRequest = z.infer<typeof SkillAuditSchema>;
+
+/**
  * POST /api/skills
  */
 export const SkillsListSchema = z.object({}).optional();

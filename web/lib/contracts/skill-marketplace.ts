@@ -1,11 +1,17 @@
-import { SuiJsonRpcClient, getJsonRpcFullnodeUrl } from '@mysten/sui/jsonRpc';
+import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc';
 import { Transaction } from '@mysten/sui/transactions';
-import { bcs, fromBase64 } from '@mysten/bcs';
+import { bcs, fromBase64, fromHex } from '@mysten/bcs';
+import { getSuiRpcClient } from '../sui-rpc';
 import type { Network } from '../walrus/types';
 
 // Contract package ID - set via environment variable after deployment
+// Original package ID (v1) - used for types, queries, encryption namespace
 export const MARKETPLACE_PACKAGE_ID =
   process.env.NEXT_PUBLIC_MARKETPLACE_PACKAGE_ID || '';
+
+// Upgraded package ID (v2) - used for calling new functions (seal_approve_v2, etc.)
+const MARKETPLACE_V2_PACKAGE_ID =
+  process.env.NEXT_PUBLIC_MARKETPLACE_V2_PACKAGE_ID || MARKETPLACE_PACKAGE_ID;
 
 export const MARKETPLACE_MODULE = 'skill_marketplace';
 
@@ -187,20 +193,25 @@ export function buildClaimFreeSkillTx(skillObjectId: string): Transaction {
 }
 
 /**
- * Build a transaction that calls seal_approve for Seal decryption.
+ * Build a transaction that calls seal_approve_v2 for Seal decryption.
  * This tx is NOT executed - only serialized as txBytes for Seal key servers.
+ *
+ * The v2 function does NOT parse the `id` parameter against the skill object ID.
+ * Instead, `innerIdBytes` must match the inner ID used during Seal encryption
+ * (extracted from the encrypted object via EncryptedObject.parse()).
+ * The function only validates the AccessCap.
  */
 export function buildSealApproveTx(
+  innerIdBytes: number[],
   skillObjectId: string,
   accessCapObjectId: string,
-  sealId: string,
 ): Transaction {
   const tx = new Transaction();
 
   tx.moveCall({
-    target: `${MARKETPLACE_PACKAGE_ID}::${MARKETPLACE_MODULE}::seal_approve`,
+    target: `${MARKETPLACE_V2_PACKAGE_ID}::${MARKETPLACE_MODULE}::seal_approve_v2`,
     arguments: [
-      tx.pure.vector('u8', blobIdToBytes(sealId)),
+      tx.pure.vector('u8', innerIdBytes),
       tx.object(skillObjectId),
       tx.object(accessCapObjectId),
     ],
@@ -210,18 +221,18 @@ export function buildSealApproveTx(
 }
 
 /**
- * Build a transaction that calls seal_approve_free for free skill decryption.
+ * Build a transaction that calls seal_approve_free_v2 for free skill decryption.
  */
 export function buildSealApproveFreeTx(
+  innerIdBytes: number[],
   skillObjectId: string,
-  sealId: string,
 ): Transaction {
   const tx = new Transaction();
 
   tx.moveCall({
-    target: `${MARKETPLACE_PACKAGE_ID}::${MARKETPLACE_MODULE}::seal_approve_free`,
+    target: `${MARKETPLACE_V2_PACKAGE_ID}::${MARKETPLACE_MODULE}::seal_approve_free_v2`,
     arguments: [
-      tx.pure.vector('u8', blobIdToBytes(sealId)),
+      tx.pure.vector('u8', innerIdBytes),
       tx.object(skillObjectId),
     ],
   });
@@ -327,7 +338,7 @@ export async function checkUserHasAccess(
  * Get a SuiClient for the given network.
  */
 export function getSuiClient(network: Network): SuiJsonRpcClient {
-  return new SuiJsonRpcClient({ network, url: getJsonRpcFullnodeUrl(network) });
+  return getSuiRpcClient(network);
 }
 
 /**

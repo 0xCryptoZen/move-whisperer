@@ -5,6 +5,7 @@ import { useCurrentAccount } from '@mysten/dapp-kit';
 import { useLocalServer } from '../../hooks/useLocalServer';
 import { usePlaygroundStore, type PlaygroundMessage } from '../../lib/stores/playground-store';
 import { useAuth } from '../../lib/auth/context';
+import { usePurchasedSkillsStore, type CachedSkillContent } from '../../lib/stores/purchased-skills-store';
 import ServerConfigPanel, { getAnthropicApiKey } from '../../components/ServerConfigPanel';
 
 // --- Types ---
@@ -264,7 +265,7 @@ function AddSkillModal({
 
 // --- Main Page ---
 
-type SkillTab = 'cloud' | 'local';
+type SkillTab = 'cloud' | 'local' | 'purchased';
 
 export default function PlaygroundPage() {
   const { isConnected, isConnecting, connect } = useLocalServer({ autoConnect: true });
@@ -290,6 +291,10 @@ export default function PlaygroundPage() {
     setError,
     clearMessages,
   } = usePlaygroundStore();
+
+  // Purchased skills cache
+  const purchasedCache = usePurchasedSkillsStore((s) => s.cache);
+  const purchasedSkills = Object.values(purchasedCache);
 
   const [input, setInput] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -388,6 +393,15 @@ export default function PlaygroundPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load skill');
     }
+  }, [setSelectedSkill, setSkillContent, setError, clearMessages]);
+
+  // Select a purchased skill — load from in-memory cache
+  const handleSelectPurchasedSkill = useCallback((skill: CachedSkillContent) => {
+    setSelectedSkill({ name: skill.title, path: `purchased:${skill.skillId}`, preview: `${skill.network} / ${skill.scene}` });
+    setError(null);
+    setIsCloudSkillSelected(true);
+    setSkillContent(skill.content);
+    clearMessages();
   }, [setSelectedSkill, setSkillContent, setError, clearMessages]);
 
   // Save new local skill
@@ -544,12 +558,15 @@ export default function PlaygroundPage() {
   // Determine if we have any skills to show (don't block page for local server)
   const hasCloudSkills = cloudSkills.length > 0;
   const hasLocalSkills = skills.length > 0;
+  const hasPurchasedSkills = purchasedSkills.length > 0;
   const showLocalTab = isConnected || hasLocalSkills;
 
   // Default to cloud tab if user is logged in, otherwise local
   useEffect(() => {
     if (user && hasCloudSkills) {
       setActiveTab('cloud');
+    } else if (hasPurchasedSkills) {
+      setActiveTab('purchased');
     } else if (showLocalTab) {
       setActiveTab('local');
     }
@@ -601,6 +618,19 @@ export default function PlaygroundPage() {
                   {cloudSkills.length > 0 && (
                     <span className="ml-1 text-[9px] opacity-70">({cloudSkills.length})</span>
                   )}
+                </button>
+              )}
+              {hasPurchasedSkills && (
+                <button
+                  onClick={() => setActiveTab('purchased')}
+                  className={`flex-1 text-[10px] font-mono-cyber uppercase tracking-wider py-1.5 rounded transition-colors ${
+                    activeTab === 'purchased'
+                      ? 'text-[var(--neon-amber)] bg-[rgba(var(--neon-amber-rgb),0.1)] border border-[rgba(var(--neon-amber-rgb),0.3)]'
+                      : 'text-muted-foreground hover:text-white border border-transparent'
+                  }`}
+                >
+                  Purchased
+                  <span className="ml-1 text-[9px] opacity-70">({purchasedSkills.length})</span>
                 </button>
               )}
               {showLocalTab && (
@@ -682,6 +712,37 @@ export default function PlaygroundPage() {
                       isSelected={selectedSkill?.path === `cloud:${cs.id}`}
                       onSelect={() => handleSelectCloudSkill(cs)}
                       badge={cs.scene}
+                    />
+                  ))
+                )}
+              </>
+            )}
+
+            {/* Purchased skills tab */}
+            {activeTab === 'purchased' && (
+              <>
+                {purchasedSkills.length === 0 ? (
+                  <div className="text-center py-8 px-2">
+                    <p className="text-sm text-muted-foreground font-mono-cyber mb-3">
+                      No purchased skills cached
+                    </p>
+                    <p className="text-xs text-muted-foreground font-mono-cyber">
+                      Purchase a skill on the{' '}
+                      <a href="/marketplace" className="text-[var(--neon-amber)] hover:underline">Marketplace</a>
+                      {' '}and view it to cache
+                    </p>
+                  </div>
+                ) : (
+                  purchasedSkills.map((ps) => (
+                    <SkillCard
+                      key={ps.skillId}
+                      skill={{
+                        name: ps.title,
+                        preview: `${ps.network} / ${ps.scene}${ps.packageId ? ` / ${ps.packageId.slice(0, 10)}...` : ''}`,
+                      }}
+                      isSelected={selectedSkill?.path === `purchased:${ps.skillId}`}
+                      onSelect={() => handleSelectPurchasedSkill(ps)}
+                      badge="Purchased"
                     />
                   ))
                 )}

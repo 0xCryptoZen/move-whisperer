@@ -18,6 +18,7 @@ import { executeCommand, streamCommand } from './terminal.js';
 import { handleDecompile } from './routes/decompile.js';
 import { handleChat } from './routes/chat.js';
 import { handleClaude } from './routes/claude.js';
+import { handleSkillAudit } from './routes/skill-audit.js';
 import { handleHealth, getHealthData } from './routes/health.js';
 import { handleAnalyzeContract, handleAnalyzeVersionChanges } from './routes/analyze.js';
 import { handleHistory, handleCompare } from './routes/history.js';
@@ -36,6 +37,7 @@ import {
   TransactionRequestSchema,
   TransactionSkillSchema,
   TerminalRequestSchema,
+  SkillAuditSchema,
   SkillsListSchema,
   SkillSaveSchema,
   SkillReadSchema,
@@ -249,6 +251,14 @@ async function handleRequest(
         await handleTransactionSkill(body, res, legacySendJson, legacySendError);
         break;
 
+      case '/api/skill-audit':
+        if (method !== 'POST') {
+          sendError(req, res, 'Method not allowed', 405);
+          return;
+        }
+        await handleSkillAudit(body, res, legacySendJson, legacySendError, wsConnections);
+        break;
+
       case '/api/terminal':
         if (method !== 'POST') {
           sendError(req, res, 'Method not allowed', 405);
@@ -308,6 +318,7 @@ function getSchemaForEndpoint(pathname: string) {
     '/api/compare': CompareRequestSchema,
     '/api/transaction': TransactionRequestSchema,
     '/api/transaction/skill': TransactionSkillSchema,
+    '/api/skill-audit': SkillAuditSchema,
     '/api/terminal': TerminalRequestSchema,
     '/api/skills': SkillsListSchema,
     '/api/skills/save': SkillSaveSchema,
